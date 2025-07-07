@@ -493,7 +493,7 @@ def get_confidence_levels(models,max_model_id,max_model_ll,confidence_statistic,
 def add_segments(beagle_marker_dict,rec_dict,chromosome_positions,sharing_dict,seg_input,recombination_rates,pairs,masked_segments_dict,ascertained_dict={},ibd2_dict={},control_ind=None,control_segments=None,masked_sum={}):
      
     ind_dict={}
-    
+    IBD2 = 'no'
     
     '''handling recombination file stuff'''
     if not options.recombination_files is None:
@@ -566,7 +566,7 @@ def add_segments(beagle_marker_dict,rec_dict,chromosome_positions,sharing_dict,s
                     f.close()
                     raise RuntimeError(msg)
                     
-                else: # 6 columns 
+                else: # 6 or 7 columns 
                     
                     #ind_id=min(line_list[0],line_list[1]) + ":" + max(line_list[0],line_list[1]) ## THIS IS WHAT MESSED ME UP BEFORE -- BAD SORTING
                     ind_id=line_list[0] + ":" + line_list[1]
@@ -592,7 +592,10 @@ def add_segments(beagle_marker_dict,rec_dict,chromosome_positions,sharing_dict,s
                         end_position=int(line_list[3])
                         cm=float(line_list[4])
 
-                        IBD2="no" # 6 column GERMLINE input has no IBD2 information
+                        if len(line_list) == 7:
+                            ibd2_status = int(line_list[6])
+                            if ibd2_status == 2:
+                                IBD2 = 'yes'
 
                         process_segment(chromosome,ascertained_dict,sharing_dict,ibd2_dict,ind_id,cm,controls,begin_position,end_position,recombination_rates,IBD2,control_segments,masked_segments_dict,masked_sum)
 
@@ -675,11 +678,9 @@ def add_segments(beagle_marker_dict,rec_dict,chromosome_positions,sharing_dict,s
                     control_ind.add(id1) 
                     control_ind.add(id2) 
 
-                chromosome = segment_tuple[0]
+                chromosome, begin_position, end_position, cm = segment_tuple[0], segment_tuple[1], segment_tuple[2], segment_tuple[3]
 
                 if controls == "yes" or all_cases == "yes" or ind_id in pairs:
-
-                    begin_position, end_position, cm = segment_tuple[1], segment_tuple[2], segment_tuple[3]
 
                     # New 9/3/24 ~ check IBD data in the tuple (NA, 1, or 2)
                     ibd_status = segment_tuple[4]

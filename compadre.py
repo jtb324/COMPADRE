@@ -128,7 +128,6 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
     segment_dict = {}
     additional_options = {}
     ibd2_status = 'false'
-    ibd2_counter = 0
 
     if segment_data_file != 'NA':
         
@@ -159,10 +158,6 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
                     iid1, iid2, start, end, cmlen, chrom, ibd = ls[0], ls[1], int(ls[2]), int(ls[3]), round(float(ls[4]), 2), int(ls[5]), int(ls[6].strip())
                     key = f"{iid1}:{iid2}"
                     value = (chrom, start, end, cmlen, ibd)
-
-                    # comment this out later
-                    if ibd == 2:
-                        ibd2_counter += 1
 
                     if cmlen >= 5.0: 
                         if key not in segment_dict:
@@ -347,6 +342,7 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
 
             except KeyboardInterrupt:
                 break
+
             except Exception as e:
                 safe_print(f"Error: {e}")
                 continue
@@ -365,7 +361,7 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
 
 if __name__ == '__main__':
 
-    # This is how the script is called from lib/perl_modules/PRIMUS/predict_relationships_2d.pm
+    # This is how the script is called from bin/compadre_kickoff.pl
 
     segment_data_file = sys.argv[1]
     portnumber = int(sys.argv[2])

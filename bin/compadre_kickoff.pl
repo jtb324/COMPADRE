@@ -545,8 +545,8 @@ sub print_files_and_settings {
 	print "Segment data file: $ersa_data\n" if $ersa_data ne "";
 	print $LOG "Segment data file: $ersa_data\n" if $ersa_data ne "";
 
-	print "\nPort number: $port_number\n" if $port_number ne "" && $port_number != 6000;
-	print $LOG "\nPort number: $port_number\n" if $port_number ne "" && $port_number != 6000;
+	print "Port number: $port_number\n" if $port_number ne "" && $port_number != 6000;
+	print $LOG "Port number: $port_number\n" if $port_number ne "" && $port_number != 6000;
 
 	# if ($ersa_data ne "") # checking if an argument was actually passed for ersa data
 	# {

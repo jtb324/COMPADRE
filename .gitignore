@@ -16,6 +16,7 @@ __MACOSX/
 
 # test output folders
 *test_output*/
+docker_testing/*
 
 # test files 
 test.py 
