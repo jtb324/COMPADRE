@@ -54,6 +54,14 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -
 # Add conda to PATH
 ENV PATH="/opt/conda/bin:${PATH}"
 
+# accept TOS
+RUN conda config --set channel_priority flexible && \
+    echo "channels:" > ~/.condarc && \
+    echo "  - conda-forge" >> ~/.condarc && \
+    echo "  - defaults" >> ~/.condarc && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
 # Create env with compatible python version
 RUN conda create -n compadre python=3.11 -y
 
