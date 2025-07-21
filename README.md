@@ -143,8 +143,8 @@ If you use COMPADRE in your research, please cite the following:
 ```
 Evans GF, Baker JT, Petty LE, Petty AS, Polikowsky HG, Bohlender RJ, Chen HH, Chou CY, 
 Viljoen KZ, Beilby JM, Kraft SJ, Zhu W, Landman JM, Morrow AR, Bian D, Scartozzi AC, 
-Huff CD, Below JE. Combined Pedigree-aware Distant Relatedness Estimation (COMPADRE): 
-improved pedigree reconstruction using integrated relationship estimation approaches. 
+Huff CD, Below JE. COMPADRE: Combined Pedigree-aware Distant Relatedness Estimation 
+for improved pedigree reconstruction using integrated relationship estimation approaches 
 [Publication details forthcoming]
 ```
 

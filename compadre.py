@@ -1,5 +1,5 @@
 from xopen import xopen
-import os, math, sys, json, signal, socket
+import os, math, sys, json, signal, socket, traceback
 import pandas as pd
 
 import warnings
@@ -189,13 +189,6 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
                 safe_print('[COMPADRE] Unrecognized segment file format. Please refer to the README (https://github.com/belowlab/compadre) for formatting guidelines.')
                 sys.exit(1)
 
-    # else: no data provided, and the socket is only being set up for running the pop classifier
-
-    ####################################################################################################
-    # Everything above this is done ONCE when COMPADRE starts 
-    # and kept in memory for easy access when new requests are made over the socket
-
-    # Check for $COMPADRE_HOST ENV variable 
     socket_host = os.environ['COMPADRE_HOST'] if 'COMPADRE_HOST' in os.environ else 'localhost'
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -209,145 +202,21 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
         safe_print(f"COMPADRE helper is ready.")
         sys.stdout.flush()
 
-        # At this point, the script executes a while loop as a way to wait for incoming messages
-
         while True:
-
-            try: # New try except for error handling socket issues 
-
+            try:
                 conn, address = server_socket.accept()
-
-                # Set timeout to None for client connections too
                 conn.settimeout(None)
 
-                msg = conn.recv(1024).decode()
-                
-                if msg == 'close':
-                    conn.send("Closing server".encode())
-                    conn.close()
-                    break
-
-                ms = msg.strip().split('|')
-
-                ########################################################
-
-                if ms[-1] == 'pop_classifier': # Run population classifier script and return success message
-
-                    eigenvec_file = ms[0]
-                    pop_file = ms[1]
-
-                    predictions = run_pop_classifier(eigenvec_file, pop_file)
-                    predictions = "|".join(str(x) for x in predictions)
-
-                    conn.send(predictions.encode())
-                    conn.close() 
-
-
-                elif ms[-1] == 'padre': # Run PADRE
-                    
-                    # object to pass to ersa is the WHOLE dictionary
-                    segment_obj = json.dumps(segment_dict)
-
-                    # make output directory
-                    ersa_dir = f'{output_directory}/ersa'
-                    if not os.path.exists(ersa_dir):
-                        os.makedirs(ersa_dir, exist_ok=True)
-                    ersa_outfile = f'{ersa_dir}/output_all_ersa'
-                    
-                    ersa_options = {
-                        "segment_dict": segment_obj,
-                        "segment_files": segment_data_file,
-                        "model_output_file": f"{ersa_outfile}.model",
-                        "output_file": f"{ersa_outfile}.out",
-                        "return_output": False,
-                        "write_output": True,
-                        "use_ibd2_siblings": ibd2_status 
-                    }
-
-                    # merge with additional options
-                    ersa_options.update(additional_options)
-
-                    ersa.runner(ersa_options) # output written to file, not returned
-
-                    conn.send(ersa_outfile.encode()) # return filepath it was written to
-                    conn.close()
-
-
-                else: # "Pairwise" normal behavior
-
-                    id1, id2, vector_str, analysis_type = ms
-    
-                    id1_temp = id1.split('_')[-1] # just in case
-                    id2_temp = id2.split('_')[-1]
-                    
-                    idcombo = f"{id1_temp}:{id2_temp}"
-                    idcombo2 = f"{id2_temp}:{id1_temp}"
-
-                    if idcombo not in segment_dict and idcombo2 not in segment_dict: # No segments with either id combo permutation
-                        result = '0,0,0,0,0,1' 
-                    
-                    else:
-
-                        if idcombo in segment_dict:
-                            key = idcombo
-                            segment_obj = {key : segment_dict[key]} 
-                            segment_obj = json.dumps(segment_obj)
-
-                        else:
-                            key = idcombo2
-                            segment_obj = {key : segment_dict[key]} 
-                            segment_obj = json.dumps(segment_obj)
-
-                        ersa_dir = f'{output_directory}/ersa'
-                        if not os.path.exists(ersa_dir):
-                            os.makedirs(ersa_dir, exist_ok=True)
-                        ersa_outfile = f'{ersa_dir}/output_all_ersa'
-
-                        ersa_options = {
-                            "single_pair": key,
-                            "segment_dict": segment_obj,
-                            "segment_files": segment_data_file,
-                            "model_output_file": f"{ersa_outfile}.model",
-                            "output_file": f"{ersa_outfile}.out",
-                            "return_output": True,
-                            "write_output": False,
-                            "use_ibd2_siblings": ibd2_status,
-                        }
-
-                        # merge with additional options
-                        ersa_options.update(additional_options)
-
-                        output_model_df = ersa.runner(ersa_options)
-
-                        if output_model_df.empty: 
-                            result = '0,0,0,0,0,1' 
-
-                        else:
-
-                            if output_model_df['maxlnl'].isna().all():
-                                result = '0,0,0,0,0,1'
-                            
-                            else:
-                                ersa_props = calculate_ersa_props(output_model_df)
-                                vector_arr = [float(x) for x in vector_str.split(',')]
-                                prop02 = 1 - (vector_arr[0] + vector_arr[1])
-                                ersa_props_updated = tuple(x * prop02 for x in ersa_props) 
-                                updated_vector = f'{vector_arr[0]},{vector_arr[1]},{ersa_props_updated[0]},{ersa_props_updated[1]},{ersa_props_updated[2]},{ersa_props_updated[3]}'
-                                result = updated_vector
-
-
-                    # send whatever 'result' is at the end of this logic back to Perl
-                    conn.send(result.encode())
-                    conn.close()
+                # NEW: Handle the client connection with better error handling
+                handle_client_connection(conn, segment_dict, additional_options, ibd2_status, segment_data_file, output_directory)
 
             except KeyboardInterrupt:
                 break
-
             except Exception as e:
-                safe_print(f"Error: {e}")
+                safe_print(f"Error accepting connection: {str(e)}")
+                import traceback
+                safe_print(f"Traceback: {traceback.format_exc()}")
                 continue
-
-    #large_file.close()
 
     except KeyboardInterrupt:
         pass
@@ -357,6 +226,214 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
         except:
             pass
         safe_print("[COMPADRE] COMPADRE helper shutdown complete.")
+
+
+def handle_client_connection(conn, segment_dict, additional_options, ibd2_status, 
+                           segment_data_file, output_directory):
+    
+    try:
+        msg = conn.recv(1024).decode()
+        
+        if msg == 'close':
+            conn.send("Closing server".encode())
+            return
+            
+        if msg.strip() == 'test':
+            conn.send("OK".encode())
+            return
+
+        ms = msg.strip().split('|')
+
+        ########################################################
+        # Population classifier
+        if len(ms) >= 3 and ms[-1] == 'pop_classifier':
+            try:
+                safe_print(f"Processing pop_classifier request", file=sys.stderr)
+                
+                eigenvec_file = ms[0]
+                pop_file = ms[1]
+
+                predictions = run_pop_classifier(eigenvec_file, pop_file)
+                predictions = "|".join(str(x) for x in predictions)
+
+                conn.send(predictions.encode())
+                
+            except Exception as e:
+                error_msg = f"POP_CLASSIFIER_ERROR: {str(e)}\n{traceback.format_exc()}"
+                safe_print(error_msg, file=sys.stderr)
+                conn.send(f"ERROR: {error_msg}".encode())
+
+        ########################################################
+        # PADRE
+        elif len(ms) >= 1 and ms[-1] == 'padre':
+            try:
+                safe_print(f"Processing PADRE request", file=sys.stderr)
+                
+                # object to pass to ersa is the WHOLE dictionary
+                segment_obj = json.dumps(segment_dict)
+
+                # make output directory
+                ersa_dir = f'{output_directory}/ersa'
+                if not os.path.exists(ersa_dir):
+                    os.makedirs(ersa_dir, exist_ok=True)
+                ersa_outfile = f'{ersa_dir}/output_all_ersa'
+                
+                ersa_options = {
+                    "segment_dict": segment_obj,
+                    "segment_files": segment_data_file,
+                    "model_output_file": f"{ersa_outfile}.model",
+                    "output_file": f"{ersa_outfile}.out",
+                    "return_output": False,
+                    "write_output": True,
+                    "use_ibd2_siblings": ibd2_status 
+                }
+
+                # merge with additional options
+                ersa_options.update(additional_options)
+
+                safe_print(f"Running ERSA with options: {ersa_options}", file=sys.stderr)
+                ersa.runner(ersa_options) # output written to file, not returned
+
+                conn.send(ersa_outfile.encode()) # return filepath it was written to
+                
+            except Exception as e:
+                error_msg = f"PADRE_ERROR: {str(e)}\n{traceback.format_exc()}"
+                safe_print(error_msg, file=sys.stderr)
+                conn.send(f"ERROR: {error_msg}".encode())
+
+        ########################################################
+        # Pairwise ERSA processing
+        elif len(ms) >= 4:
+            try:
+                id1, id2, vector_str, analysis_type = ms
+                safe_print(f"Processing ERSA for {id1} <-> {id2}", file=sys.stderr)
+
+                # Process the pairwise request
+                result = process_pairwise_ersa(id1, id2, vector_str, analysis_type, 
+                                             segment_dict, additional_options, 
+                                             ibd2_status, segment_data_file, output_directory)
+                
+                conn.send(result.encode())
+                
+            except Exception as e:
+                error_msg = f"ERSA_ERROR: Failed to process {id1} <-> {id2}: {str(e)}\n{traceback.format_exc()}"
+                safe_print(error_msg, file=sys.stderr)
+                conn.send(f"ERROR: {error_msg}".encode())
+
+        else:
+            error_msg = f"UNKNOWN_COMMAND: Received message with {len(ms)} parts: {ms}"
+            safe_print(error_msg, file=sys.stderr)
+            conn.send(f"ERROR: {error_msg}".encode())
+
+    except Exception as e:
+        error_msg = f"SOCKET_ERROR: {str(e)}\n{traceback.format_exc()}"
+        safe_print(error_msg, file=sys.stderr)
+        try:
+            conn.send(f"ERROR: {error_msg}".encode())
+        except:
+            pass  # Socket might be closed
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
+
+
+def process_pairwise_ersa(id1, id2, vector_str, analysis_type, segment_dict, 
+                         additional_options, ibd2_status, segment_data_file, output_directory):
+    
+    try:
+        # Step 1: Parse inputs
+        try:
+            id1_temp = id1.split('_')[-1] # just in case
+            id2_temp = id2.split('_')[-1]
+            
+            idcombo = f"{id1_temp}:{id2_temp}"
+            idcombo2 = f"{id2_temp}:{id1_temp}"
+            
+            vector_arr = [float(x) for x in vector_str.split(',')]
+            if len(vector_arr) != 6:
+                raise ValueError(f"Expected 6 values in vector, got {len(vector_arr)}")
+                
+        except Exception as e:
+            raise Exception(f"Failed to parse inputs (id1={id1}, id2={id2}, vector='{vector_str}'): {str(e)}")
+
+        # Step 2: Check for segments
+        if idcombo not in segment_dict and idcombo2 not in segment_dict:
+            safe_print(f"No segments found for {idcombo} or {idcombo2}", file=sys.stderr)
+            return '0,0,0,0,0,1'
+        
+        # Step 3: Prepare segment data
+        try:
+            if idcombo in segment_dict:
+                key = idcombo
+                segment_obj = {key : segment_dict[key]} 
+            else:
+                key = idcombo2
+                segment_obj = {key : segment_dict[key]} 
+                
+            segment_obj = json.dumps(segment_obj)
+            safe_print(f"Found {len(segment_dict[key])} segments for {key}", file=sys.stderr)
+            
+        except Exception as e:
+            raise Exception(f"Failed to prepare segment data for {key}: {str(e)}")
+
+        # Step 4: Set up ERSA options
+        try:
+            ersa_dir = f'{output_directory}/ersa'
+            if not os.path.exists(ersa_dir):
+                os.makedirs(ersa_dir, exist_ok=True)
+            ersa_outfile = f'{ersa_dir}/output_all_ersa'
+
+            ersa_options = {
+                "single_pair": key,
+                "segment_dict": segment_obj,
+                "segment_files": segment_data_file,
+                "model_output_file": f"{ersa_outfile}.model",
+                "output_file": f"{ersa_outfile}.out",
+                "return_output": True,
+                "write_output": False,
+                "use_ibd2_siblings": ibd2_status,
+            }
+
+            # merge with additional options
+            ersa_options.update(additional_options)
+            
+        except Exception as e:
+            raise Exception(f"Failed to set up ERSA options: {str(e)}")
+
+        # Step 5: Run ERSA
+        try:
+            safe_print(f"Running ERSA for {key}", file=sys.stderr)
+            output_model_df = ersa.runner(ersa_options)
+            
+        except Exception as e:
+            raise Exception(f"ERSA runner failed: {str(e)}")
+
+        # Step 6: Process results
+        try:
+            if output_model_df.empty:
+                safe_print(f"ERSA returned empty dataframe for {key}", file=sys.stderr)
+                return '0,0,0,0,0,1'
+
+            if output_model_df['maxlnl'].isna().all():
+                safe_print(f"ERSA returned all NaN maxlnl values for {key}", file=sys.stderr)
+                return '0,0,0,0,0,1'
+            
+            ersa_props = calculate_ersa_props(output_model_df)
+            prop02 = 1 - (vector_arr[0] + vector_arr[1])
+            ersa_props_updated = tuple(x * prop02 for x in ersa_props) 
+            updated_vector = f'{vector_arr[0]},{vector_arr[1]},{ersa_props_updated[0]},{ersa_props_updated[1]},{ersa_props_updated[2]},{ersa_props_updated[3]}'
+            
+            safe_print(f"ERSA completed successfully for {key}", file=sys.stderr)
+            return updated_vector
+            
+        except Exception as e:
+            raise Exception(f"Failed to process ERSA results: {str(e)}")
+
+    except Exception as e:
+        # Re-raise with more context
+        raise Exception(f"ERSA processing failed for {id1} <-> {id2}: {str(e)}")
 
 
 if __name__ == '__main__':

@@ -183,13 +183,7 @@ sub reconstruct_pedigree {
 
 	eval
 	{
-		print "\nmin_likelihood: $MIN_LIKELIHOOD\n\n";
-		print $LOG "min_likelihood: $MIN_LIKELIHOOD\n" if $verbose > 1;
-
-		###################################
-		# This is where the relationship vector data gets read in from predict_relationships_2D.pm
-
-		print "\nIBD file: $MIN_LIKELIHOOD\n\n";
+		print "\nmin_likelihood: $MIN_LIKELIHOOD\n";
 		print $LOG "min_likelihood: $MIN_LIKELIHOOD\n" if $verbose > 1;
 
 		## fallback
@@ -262,22 +256,41 @@ sub reconstruct_pedigree {
 		@networks = reconstruct_network($network_ref);
 		1;
 	};
+	
 	if($@)
 	{
-		print "FAILED RECONSTRUCTION: $@\n";
-		print $LOG "FAILED RECONSTRUCTION: $@\n";
-		write_summary_file(\%scores,\%num_dummies,\%num_generations,$output_directory,$network_name,\@networks,\@sample_names,"",$@);
-		return $total_possibilities;
+		print "Failed reconstruction (COMPADRE): $@\n";
+		print $LOG "Failed reconstruction (COMPADRE): $@\n";
+		#write_summary_file(\%scores,\%num_dummies,\%num_generations,$output_directory,$network_name,\@networks,\@sample_names,"",$@);
+		#return $total_possibilities;
+		@networks = ();
 	};
 
-	# new 
 	# If no valid pedigrees found and we have fallback data, try reconstruction with fallback
     if (@networks == 0 && defined $fallback_relationships_ref) {
-        print "No valid pedigrees found with enhanced data, attempting reconstruction with base data...\n" if $verbose;
-        
-        # Create new network with fallback data
-        $network_ref = load_network($fallback_relationships_ref, $mito_ref, $y_ref, \%gender);
-        @networks = reconstruct_network($network_ref);
+        print "No valid pedigrees reconstructed with composite approach.\nAttempting reconstruction with base KDEs ...\n" if $verbose;
+		print LOG "No valid pedigrees reconstructed with composite approach.\nAttempting reconstruction with base KDEs ...\n" if $verbose;
+
+        eval {
+			$network_ref = load_network($fallback_relationships_ref, $mito_ref, $y_ref, \%gender);
+			@networks = reconstruct_network($network_ref);
+			
+			# If successful, update the relationship data for subsequent processing
+			if (@networks > 0) {
+				print "Fallback reconstruction successful, found " . scalar(@networks) . " pedigree(s)\n" if $verbose > 0;
+				print $LOG "Fallback reconstruction successful, found " . scalar(@networks) . " pedigree(s)\n" if $verbose > 0;
+				
+				$relationships_ref = $fallback_relationships_ref;
+				$raw_relationship_densities_ref = $fallback_raw_densities_ref;
+			}
+			1;
+		};
+		if($@) {
+			print "Failed reconstruction (PRIMUS): $@\n";
+			print $LOG "Failed reconstruction (PRIMUS): $@\n";
+			write_summary_file(\%scores,\%num_dummies,\%num_generations,$output_directory,$network_name,\@networks,\@sample_names,"",$@);
+			return $total_possibilities;
+		}
     }
 		
 	

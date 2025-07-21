@@ -27,20 +27,24 @@ sub send_to_compadre_helper {
     $port //= 6000;  
     my $host = $ENV{COMPADRE_HOST} // 'localhost';
 
-	#print "DEBUG: Attempting to connect to $host:$port with data: '$data'\n" if $verbose > 1;
+    print "DEBUG: Attempting to connect to $host:$port with data: '$data'\n" if $verbose > 1;
 
     my $socket = IO::Socket::INET->new(
         PeerAddr => $host,
         PeerPort => $port,
         Proto    => 'tcp',
-        Timeout  => 0,  # Set to 0 for no timeout (indefinite)
-    ) or die "Cannot connect to Python server: $!\n";
+        Timeout  => 30,  # Increase timeout for debugging
+    );
+    
+    if (!$socket) {
+        die "Cannot connect to Python server at $host:$port: $!\n";
+    }
 
     # Enable keep-alive on the socket
     $socket->sockopt(SO_KEEPALIVE, 1) if $socket->can('sockopt');
     $socket->blocking(1);
 
-	#print "DEBUG: Connected successfully, sending data...\n" if $verbose > 1;
+    print "DEBUG: Connected successfully, sending data...\n" if $verbose > 1;
 
     my $bytes_sent = $socket->print($data);
     if (!defined $bytes_sent) {
@@ -48,7 +52,7 @@ sub send_to_compadre_helper {
         die "Failed to send data to Python server: $!\n";
     }
 
-	#print "DEBUG: Sent $bytes_sent bytes, waiting for response...\n" if $verbose > 1;
+    print "DEBUG: Sent $bytes_sent bytes, waiting for response...\n" if $verbose > 1;
     
     $socket->flush();
     
@@ -56,6 +60,20 @@ sub send_to_compadre_helper {
     my $response = <$socket>;
     if (defined $response) {
         chomp $response;
+        
+        # Check if response indicates an error
+        if ($response =~ /^ERROR:\s*(.*)$/s) {
+            close($socket);
+            my $error_details = $1;
+            die "Python COMPADRE helper error: $error_details\n";
+        }
+        elsif ($response =~ /^(ERSA_ERROR|PADRE_ERROR|SOCKET_ERROR):\s*(.*)$/s) {
+            close($socket);
+            my $error_type = $1;
+            my $error_details = $2;
+            die "Python $error_type: $error_details\n";
+        }
+        
     } else {
         $response = "No response";
         warn "No response received from Python server\n";

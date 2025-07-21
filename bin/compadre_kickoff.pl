@@ -592,10 +592,12 @@ sub print_files_and_settings {
 			print "\n$line\n";
 			last;
 		}
+		elsif ($line =~ /ERROR|FAILED|Exception/) {
+            die "COMPADRE error: $line\n";
+        }
 	}
 	
 	our $compadre_pid = $pid;
-
 
 	print "\nReference file specification: $reference_pop\n\n" if $reference_pop ne "";
 	print $LOG "Reference file specification: $reference_pop\n\n" if $reference_pop ne "";

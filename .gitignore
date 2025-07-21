@@ -21,6 +21,7 @@ docker_testing/*
 # test files 
 test.py 
 testing.ipynb
+padre/data/*/
 
 # Singularity test images
 *.sif
