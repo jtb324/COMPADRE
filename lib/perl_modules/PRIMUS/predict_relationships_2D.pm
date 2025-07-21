@@ -27,7 +27,7 @@ sub send_to_compadre_helper {
     $port //= 6000;  
     my $host = $ENV{COMPADRE_HOST} // 'localhost';
 
-    print "DEBUG: Attempting to connect to $host:$port with data: '$data'\n" if $verbose > 1;
+    #print "DEBUG: Attempting to connect to $host:$port with data: '$data'\n" if $verbose > 1;
 
     my $socket = IO::Socket::INET->new(
         PeerAddr => $host,
@@ -44,7 +44,7 @@ sub send_to_compadre_helper {
     $socket->sockopt(SO_KEEPALIVE, 1) if $socket->can('sockopt');
     $socket->blocking(1);
 
-    print "DEBUG: Connected successfully, sending data...\n" if $verbose > 1;
+    #print "DEBUG: Connected successfully, sending data...\n" if $verbose > 1;
 
     my $bytes_sent = $socket->print($data);
     if (!defined $bytes_sent) {
@@ -52,7 +52,7 @@ sub send_to_compadre_helper {
         die "Failed to send data to Python server: $!\n";
     }
 
-    print "DEBUG: Sent $bytes_sent bytes, waiting for response...\n" if $verbose > 1;
+    #print "DEBUG: Sent $bytes_sent bytes, waiting for response...\n" if $verbose > 1;
     
     $socket->flush();
     
@@ -402,11 +402,11 @@ sub get_relationship_likelihood_vectors {
 		my @possibilities_old = predict_relationship(@vector_copy);
 		my $rel_old = get_maximum_relationship(@vector_copy);
 
-		if ($rel ne $rel_old) {
-			if ($verbose > 2) {
-				print "NEW relationship prediction ( $name1 $name2 ) : $rel (previously $rel_old)\n";
-			}
-		}
+		# if ($rel ne $rel_old) {
+		# 	if ($verbose > 2) {
+		# 		print "NEW relationship prediction ( $name1 $name2 ) : $rel (previously $rel_old)\n";
+		# 	}
+		# }
 
 		my $ibd0 = $k0/$KDE_density_resolution;
 		my $ibd1 = $k1/$KDE_density_resolution;

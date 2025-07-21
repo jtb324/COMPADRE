@@ -248,7 +248,7 @@ def handle_client_connection(conn, segment_dict, additional_options, ibd2_status
         # Population classifier
         if len(ms) >= 3 and ms[-1] == 'pop_classifier':
             try:
-                safe_print(f"Processing pop_classifier request", file=sys.stderr)
+                #safe_print(f"Processing pop_classifier request", file=sys.stderr)
                 
                 eigenvec_file = ms[0]
                 pop_file = ms[1]
@@ -291,7 +291,7 @@ def handle_client_connection(conn, segment_dict, additional_options, ibd2_status
                 # merge with additional options
                 ersa_options.update(additional_options)
 
-                safe_print(f"Running ERSA with options: {ersa_options}", file=sys.stderr)
+                #safe_print(f"Running ERSA with options: {ersa_options}", file=sys.stderr)
                 ersa.runner(ersa_options) # output written to file, not returned
 
                 conn.send(ersa_outfile.encode()) # return filepath it was written to
@@ -306,7 +306,7 @@ def handle_client_connection(conn, segment_dict, additional_options, ibd2_status
         elif len(ms) >= 4:
             try:
                 id1, id2, vector_str, analysis_type = ms
-                safe_print(f"Processing ERSA for {id1} <-> {id2}", file=sys.stderr)
+                #safe_print(f"Processing ERSA for {id1} <-> {id2}", file=sys.stderr)
 
                 # Process the pairwise request
                 result = process_pairwise_ersa(id1, id2, vector_str, analysis_type, 
@@ -360,7 +360,7 @@ def process_pairwise_ersa(id1, id2, vector_str, analysis_type, segment_dict,
 
         # Step 2: Check for segments
         if idcombo not in segment_dict and idcombo2 not in segment_dict:
-            safe_print(f"No segments found for {idcombo} or {idcombo2}", file=sys.stderr)
+            #safe_print(f"No segments found for {idcombo} or {idcombo2}", file=sys.stderr)
             return '0,0,0,0,0,1'
         
         # Step 3: Prepare segment data
@@ -373,7 +373,7 @@ def process_pairwise_ersa(id1, id2, vector_str, analysis_type, segment_dict,
                 segment_obj = {key : segment_dict[key]} 
                 
             segment_obj = json.dumps(segment_obj)
-            safe_print(f"Found {len(segment_dict[key])} segments for {key}", file=sys.stderr)
+            #safe_print(f"Found {len(segment_dict[key])} segments for {key}", file=sys.stderr)
             
         except Exception as e:
             raise Exception(f"Failed to prepare segment data for {key}: {str(e)}")
@@ -404,11 +404,17 @@ def process_pairwise_ersa(id1, id2, vector_str, analysis_type, segment_dict,
 
         # Step 5: Run ERSA
         try:
-            safe_print(f"Running ERSA for {key}", file=sys.stderr)
+            #safe_print(f"Running ERSA for {key}", file=sys.stderr)
             output_model_df = ersa.runner(ersa_options)
             
-        except Exception as e:
-            raise Exception(f"ERSA runner failed: {str(e)}")
+        # except Exception as e:
+        #     safe_print(f"ERSA failed for {key} with segments: {segment_dict[key]}", file=sys.stderr)
+        #     raise Exception(f"ERSA runner failed: {str(e)}")
+
+        except Exception as ersa_error:
+            # Log the ERSA error but don't crash - return original vector
+            safe_print(f"ERSA failed for {key} with segments: {segment_dict[key]}, reverting to original vector: {str(ersa_error)}", file=sys.stderr)
+            return vector_str
 
         # Step 6: Process results
         try:
@@ -425,7 +431,7 @@ def process_pairwise_ersa(id1, id2, vector_str, analysis_type, segment_dict,
             ersa_props_updated = tuple(x * prop02 for x in ersa_props) 
             updated_vector = f'{vector_arr[0]},{vector_arr[1]},{ersa_props_updated[0]},{ersa_props_updated[1]},{ersa_props_updated[2]},{ersa_props_updated[3]}'
             
-            safe_print(f"ERSA completed successfully for {key}", file=sys.stderr)
+            #safe_print(f"ERSA completed successfully for {key}", file=sys.stderr)
             return updated_vector
             
         except Exception as e:

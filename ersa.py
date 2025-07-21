@@ -246,7 +246,9 @@ def related_1p_ll(segment_list,n,ascertained_segments=[],genome_proportion=1.0):
     rc=math.log(expected_length)
     p=math.exp(-options.min_cm/(expected_length))*0.5**(n-1)
     lam=bin_n*p*genome_proportion
+
     r_ll=-lam+rn*math.log(lam)-factln(rn)
+    
     for segment in segment_list:
         segment_size=abs(segment)-options.min_cm
         r_ll+=-rc-segment_size/expected_length

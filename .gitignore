@@ -2,7 +2,6 @@
 lib/hapmap3/*
 lib/KDE_data/*
 lib/1KG/*
-testing/*
 __pycache__/
 output/*/
 input/*/
@@ -20,6 +19,7 @@ docker_testing/*
 
 # test files 
 test.py 
+testing/*
 testing.ipynb
 padre/data/*/
 
