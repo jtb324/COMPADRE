@@ -1,5 +1,5 @@
 from xopen import xopen
-import os, math, sys, json, signal, socket, traceback
+import os, math, sys, json, signal, socket, traceback, random
 import pandas as pd
 
 import warnings
@@ -116,6 +116,34 @@ def clean_ersa_options(ersa_option_dict):
     return {k: v if isinstance(v, (int, float)) else (int_options.get(k, v) if k in int_options else float_options.get(k, v)) for k, v in ersa_option_dict.items()}
 
 
+def find_available_port(preferred_port, host='localhost', max_attempts=100):
+    
+    # First try the preferred port
+    test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        test_socket.bind((host, preferred_port))
+        test_socket.close()
+        return preferred_port
+    except OSError:
+        test_socket.close()
+        safe_print(f"Port {preferred_port} is in use, searching for available port...", file=sys.stderr)
+    
+    # If preferred port is taken, try random ports in a range
+    for _ in range(max_attempts):
+        port = random.randint(4001, 8000)  # Try ports in this range
+        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            test_socket.bind((host, port))
+            test_socket.close()
+            return port
+        except OSError:
+            test_socket.close()
+            continue
+    
+    raise Exception(f"Could not find an available port after {max_attempts} attempts")
+
 ########################################
 
 def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
@@ -189,17 +217,26 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
                 safe_print('[COMPADRE] Unrecognized segment file format. Please refer to the README (https://github.com/belowlab/compadre) for formatting guidelines.')
                 sys.exit(1)
 
+    #########################
+
     socket_host = os.environ['COMPADRE_HOST'] if 'COMPADRE_HOST' in os.environ else 'localhost'
 
+    # Find an available port
+    actual_port = find_available_port(portnumber, socket_host)
+    
+    # If port changed, notify via stderr first (before stdout message)
+    if actual_port != portnumber:
+        safe_print(f"PORT_CHANGED:{actual_port}", file=sys.stderr)
+    
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
     server_socket.settimeout(None)
 
     try:
-        server_socket.bind((socket_host, portnumber))
+        server_socket.bind((socket_host, actual_port))
         server_socket.listen(1)
-        safe_print(f"COMPADRE helper is ready.")
+        safe_print(f"COMPADRE helper is ready on port {actual_port}.")
         sys.stdout.flush()
 
         while True:

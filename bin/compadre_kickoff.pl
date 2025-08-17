@@ -585,17 +585,30 @@ sub print_files_and_settings {
 	}
 	$compadre_pid = $pid;
 
-	# Wait for the server to be ready
+	# Wait for the server to be ready and check for port changes
+    my $actual_port = $port_number;  # Default to requested port
+
 	while (my $line = <$reader>) {
-		if ($line =~ /COMPADRE helper is ready/) {
-			chomp $line;  
-			print "\n$line\n";
-			last;
-		}
-		elsif ($line =~ /ERROR|FAILED|Exception/) {
+        # Check for port change notification (comes via stderr which open2 merges)
+        if ($line =~ /PORT_CHANGED:(\d+)/) {
+            $actual_port = $1;
+            print "\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
+            print $LOG "[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
+        }
+        elsif ($line =~ /COMPADRE helper is ready/) {
+            chomp $line;  
+            print "\n$line\n";
+            
+            # Update the global port number with the actual port
+            $port_number = $actual_port;
+            $main::port_number_glob = $actual_port;
+            
+            last;
+        }
+        elsif ($line =~ /ERROR|FAILED|Exception/) {
             die "COMPADRE error: $line\n";
         }
-	}
+    }
 	
 	our $compadre_pid = $pid;
 
