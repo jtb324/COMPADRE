@@ -14,7 +14,7 @@ relationship estimation accuracy in family networks ahead of pedigree generation
 
 2. COMPADRE supports optional PADRE computation after completion of standard network reconstruction. Use the `--run_padre` flag at runtime. 
 
-3. COMPADRE utilizes 1000 Genomes Project genetic reference data to generate pairwise IBD estimates. This update also leverages a support vector machine (SVM) algorithm dynamically trained on PCA results to predict ancestry ahead of IBD estimation and reconstruction.
+3. COMPADRE utilizes 1000 Genomes Project genetic reference data to generate pairwise IBD estimates. This update also leverages a support vector machine (SVM) algorithm dynamically trained on 1000 Genomes Project subpopulation PCA results to predict ancestry ahead of IBD estimation and reconstruction.
 
 
 
@@ -118,9 +118,11 @@ singularity run \
 
 
 
-## Additional Resources
+## Data Simulation Resources
 
 The source code for generating family genetic data simulations can be found [here](https://github.com/belowlab/unified-simulations). 
+
+A simple script to simulate sample ages for a given pedigree can be found in the `tools/` folder in this repository. Briefly, the first step is assignment of generations to each sample by identifying the pedigree founders as generation 0, then recursively assigning their children to generation 1, grandchildren to generation 2, and so on. Next, the script generates ages by giving each generation a base age that's 25 years older than the generation below it (founders at ~100 years, their children at ~75 years, etc.), then iteratively adjusts these ages to maintain realistic parent-child age gaps of at least 14 years and similar ages between spouses. 
 
 More details on PRIMUS, ERSA, and PADRE can be found in their respective documentation:
 - [PRIMUS](https://primus.gs.washington.edu/primusweb/res/documentation.html)
