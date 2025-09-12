@@ -6,7 +6,7 @@ relationship estimation accuracy in family networks ahead of pedigree generation
 
 
 
-## What's new? 
+## Key Improvements
 
 1. COMPADRE integrates shared segments-based relationship estimation ahead of pedigree reconstruction. We used [GERMLINE2](https://github.com/gusevlab/germline2) to identify shared segments for our benchmarking, but there are many other tools that can generate these data. Specifically, COMPADRE expects a file with the following columns: `id1 id2 start end length chrom`. COMPADRE can read a .gz or zstd compressed segment file. All standard ERSA runtime options are customizable during this step; simply use the applicable flag(s) at runtime. Descriptions of each ERSA flag can be found using the `--help` message as well as on the [COMPADRE website](https://compadre.dev/docs).
 
@@ -91,7 +91,7 @@ docker run -v /local/path/to/compadre_repo/output:/usr/src/output -p 4000:4000 c
 
 ### Option 2: Singularity
 
-COMPADRE can also be built and ran using Singularity. This option is recommended for use in HPC environments without Docker permissions.
+COMPADRE also offers Singularity support. This option is recommended for use in HPC environments without Docker permissions.
 
 ```bash
 # Build image file using Docker Hub link
@@ -110,7 +110,7 @@ singularity run \
 
 
 
-### Execution notes
+### Execution Notes
 
 - In order to easily access COMPADRE results on your local machine, use the `-v` flag in the Docker entrypoint step to link your local COMPADRE repository folder path (specifically, the `output` folder). For example, on macOS, this might be `/Users/yourname/Downloads/compadre/output` if you cloned this repository into your Downloads folder. 
 - Additional computation now takes place over an open socket. COMPADRE defaults to port 6000; if you need to use a different port, please indicate as such with the following COMPADRE flag `--port_number <INT>` AND Docker flag `--publish <INT>:<INT>`. See the "Run" examples for more details.
