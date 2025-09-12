@@ -226,7 +226,7 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
     
     # If port changed, notify via stderr first (before stdout message)
     if actual_port != portnumber:
-        safe_print(f"PORT_CHANGED:{actual_port}", file=sys.stderr)
+        safe_print(f"Port changed: {actual_port}", file=sys.stderr)
     
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -236,7 +236,7 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
     try:
         server_socket.bind((socket_host, actual_port))
         server_socket.listen(1)
-        safe_print(f"COMPADRE helper is ready on port {actual_port}.")
+        safe_print(f"COMPADRE helper is ready on port {actual_port}")
         sys.stdout.flush()
 
         while True:

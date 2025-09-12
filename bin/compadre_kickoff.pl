@@ -70,6 +70,7 @@ my $LOG;
 # Store PID globally for signal handlers
 our $compadre_pid;
 our $cleanup_called = 0; 
+our $port_number_glob;
 
 sub cleanup_compadre {
     my $sig = shift;
@@ -313,8 +314,8 @@ sub run_prePRIMUS
 	print $LOG "PrePRIMUS done.\n" if $verbose > 0;
 }
 
-sub run_PR
-{
+sub run_PR {
+
 	## Load networks
 	my %networks;
 	open(IN,"$output_dir/$dataset_name\_networks") or die "can't open $output_dir/$dataset_name\_networks; $!\n\n";
@@ -477,11 +478,13 @@ sub run_PR
 		print "\nInitializing PADRE\n" if $verbose > 0;
 		print $LOG "Initializing PADRE\n" if $verbose > 0;
 
-		print "Requesting ERSA output path from COMPADRE helper...\n" if $verbose > 0;
+		print "Requesting ERSA output path from COMPADRE helper... (port $port_number_glob)\n" if $verbose > 1;
+		print $LOG "Requesting ERSA output path from COMPADRE helper... (port $port_number_glob)\n" if $verbose > 1;
 
-		my $ersa_output_path_prefix = PRIMUS::predict_relationships_2D::send_to_compadre_helper("padre", $port_number);
+		my $ersa_output_path_prefix = PRIMUS::predict_relationships_2D::send_to_compadre_helper("padre", $port_number_glob);
 
-		print "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 0;
+		print "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 1;
+		print $LOG "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 1;
 
 		# Get the exact ones for regular and model files
 		my $ersa_model_output_path = "$ersa_output_path_prefix.model";
@@ -492,12 +495,12 @@ sub run_PR
 		system($padre_command) == 0
 			or warn "Failed to run PADRE: $padre_command\n";
 
-		print "PADRE complete.\n" if $verbose > 0;
-		print $LOG "PADRE complete.\n" if $verbose > 0;
+		print "PADRE complete.\n\n" if $verbose > 0;
+		print $LOG "PADRE complete.\n\n" if $verbose > 0;
 
 	}
 
-	my $shutdown_ack = PRIMUS::predict_relationships_2D::send_to_compadre_helper("close", $port_number);
+	my $shutdown_ack = PRIMUS::predict_relationships_2D::send_to_compadre_helper("close", $port_number_glob);
 	print "COMPADRE socket shutdown message: $shutdown_ack\n" if $verbose > 0;	
 
 	## Write out pairwise Summary file based on the results in the Summary file and possible pedigrees
@@ -579,7 +582,9 @@ sub print_files_and_settings {
 	}
 
 	# Open socket
-	my $pid = open2($reader, $writer, "python3 $helper_path $ersa_arg $port_number \"$ersa_flags\" $output_dir");
+	#my $pid = open2($reader, $writer, "python3 $helper_path $ersa_arg $port_number \"$ersa_flags\" $output_dir");
+	my $pid = open2($reader, $writer, 'python3', $helper_path, $ersa_arg, $port_number, $ersa_flags, $output_dir);
+
 	if (!defined $pid) {
 		die "Failed to launch COMPADRE helper: $!\n\n";
 	}
@@ -589,22 +594,28 @@ sub print_files_and_settings {
     my $actual_port = $port_number;  # Default to requested port
 
 	while (my $line = <$reader>) {
+
         # Check for port change notification (comes via stderr which open2 merges)
-        if ($line =~ /PORT_CHANGED:(\d+)/) {
+        if ($line =~ /Port changed: (\d+)/) {
             $actual_port = $1;
+			$port_number = $actual_port;
+
             print "\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
             print $LOG "[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
         }
-        elsif ($line =~ /COMPADRE helper is ready/) {
-            chomp $line;  
-            print "\n$line\n";
-            
-            # Update the global port number with the actual port
-            $port_number = $actual_port;
-            $main::port_number_glob = $actual_port;
-            
-            last;
-        }
+
+        # Always parse the actual port from the "ready" line on stdout
+		elsif ($line =~ /COMPADRE helper is ready on port\s+(\d+)/) {
+			$actual_port = $1;  # <-- CRITICAL: take the authoritative port from stdout
+			chomp $line;
+			print "\n$line\n";
+
+			# Overwrite the working port so all later steps use it
+			$port_number = $actual_port;
+
+			last;
+		}
+
         elsif ($line =~ /ERROR|FAILED|Exception/) {
             die "COMPADRE error: $line\n";
         }
@@ -619,6 +630,7 @@ sub print_files_and_settings {
 
 	our $ersa_data_glob = $ersa_data;
 	our $port_number_glob = $port_number;
+	#print "\n[COMPADRE] Global port number: $port_number_glob\n";
 	our $reference_pop_glob = $reference_pop;
 
 	# ERSA additional arguments 
@@ -1850,7 +1862,6 @@ B<./run_COMPADRE.pl> B<--file> F<../example_data/mt_and_y_halfsib3_size20_sim46-
 =back
 
 =cut
-
 
 
 
