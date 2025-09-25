@@ -67,20 +67,32 @@ def detect_min_cm(segment_dict):
     
     return min_cm_found if min_cm_found != float('inf') else None
 
+
+
 def update_min_cm(additional_options, segment_dict):
     """
-    Update min_cm in additional_options if all segments are above the current threshold
+    Update min_cm if it's still the default (2.5) and all segments are above that threshold
+
+    This is to reflect the "true" cutoff that was used in segment detection but might not have been passed into COMPADRE via the ERSA min_cm flag
     """
-    current_min_cm = additional_options.get('min_cm', 2.5)
+    current_min_cm = additional_options['min_cm']
+    
+    # Only auto-detect if still using the default value
+    if current_min_cm != 2.5:
+        safe_print(f'Current min_cm is {current_min_cm} and will be passed as such', file=sys.stderr)
+        return additional_options
+    
     detected_min_cm = detect_min_cm(segment_dict)
     
-    if detected_min_cm is not None and detected_min_cm > current_min_cm:
+    if detected_min_cm is not None and detected_min_cm > 2.5:
         safe_print(f"[COMPADRE] Auto-detected minimum cM: {detected_min_cm}", file=sys.stderr)
-        safe_print(f"[COMPADRE] All segments are above current threshold ({current_min_cm})", file=sys.stderr)
+        safe_print(f"[COMPADRE] All segments are above default threshold (2.5)", file=sys.stderr)
         safe_print(f"[COMPADRE] Updating min_cm for ERSA to: {detected_min_cm}", file=sys.stderr)
         additional_options['min_cm'] = detected_min_cm
     
     return additional_options
+
+
 
 def calculate_ersa_props(model_df):
 
