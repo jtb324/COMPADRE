@@ -51,6 +51,37 @@ def convert_value(value):
     # Return as string
     return value
 
+def detect_min_cm(segment_dict):
+    """
+    Detect the minimum cM value from the loaded segments
+    """
+    if not segment_dict:
+        return None
+    
+    min_cm_found = float('inf')
+    for pair_segments in segment_dict.values():
+        for segment in pair_segments:
+            cm_value = segment[3]  # cM is at index 3
+            if cm_value < min_cm_found:
+                min_cm_found = cm_value
+    
+    return min_cm_found if min_cm_found != float('inf') else None
+
+def update_min_cm(additional_options, segment_dict):
+    """
+    Update min_cm in additional_options if all segments are above the current threshold
+    """
+    current_min_cm = additional_options.get('min_cm', 2.5)
+    detected_min_cm = detect_min_cm(segment_dict)
+    
+    if detected_min_cm is not None and detected_min_cm > current_min_cm:
+        safe_print(f"[COMPADRE] Auto-detected minimum cM: {detected_min_cm}", file=sys.stderr)
+        safe_print(f"[COMPADRE] All segments are above current threshold ({current_min_cm})", file=sys.stderr)
+        safe_print(f"[COMPADRE] Updating min_cm for ERSA to: {detected_min_cm}", file=sys.stderr)
+        additional_options['min_cm'] = detected_min_cm
+    
+    return additional_options
+
 def calculate_ersa_props(model_df):
 
     if model_df.empty:
@@ -169,6 +200,9 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
 
         additional_options = clean_ersa_options(additional_options)  
 
+        # Get min_cm from additional options to use instead of 5 cM every time 
+        min_cm_options = additional_options['min_cm']
+
         with xopen(segment_data_file, 'r') as f: # Open the large file here and populate dictionary that stays in system memory
 
             # Check number of columns to determine if it has IBD1/2 data or not 
@@ -187,7 +221,7 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
                     key = f"{iid1}:{iid2}"
                     value = (chrom, start, end, cmlen, ibd)
 
-                    if cmlen >= 5.0: 
+                    if cmlen >= min_cm_options: 
                         if key not in segment_dict:
                             segment_dict[key] = [value,]
                         else:
@@ -207,7 +241,7 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
                     key = f"{iid1}:{iid2}"
                     value = (chrom, start, end, cmlen, 'NA') # no ibd1/2 data in this input
 
-                    if cmlen >= 5.0:
+                    if cmlen >= min_cm_options:
                         if key not in segment_dict:
                             segment_dict[key] = [value,]
                         else:
@@ -217,6 +251,13 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
                 safe_print('[COMPADRE] Unrecognized segment file format. Please refer to the README (https://github.com/belowlab/compadre) for formatting guidelines.')
                 sys.exit(1)
 
+    
+    # Figure out the true min_cm to be passed into ERSA based on the contents of segment_dict
+
+    if segment_dict:  # Only if we have segments loaded
+        additional_options = update_min_cm(additional_options, segment_dict) # This will update min_cm passed into ersa if applicable
+        
+    
     #########################
 
     socket_host = os.environ['COMPADRE_HOST'] if 'COMPADRE_HOST' in os.environ else 'localhost'
