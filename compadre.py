@@ -454,18 +454,21 @@ def process_pairwise_ersa(id1, id2, vector_str, analysis_type, segment_dict,
             return '0,0,0,0,0,1'
         
         # Step 3: Prepare segment data
+        key = segment_dict.get(idcombo, idcombo2)
+        if idcombo in segment_dict:
+            key = idcombo
+        else:
+            key = idcombo2
+            
         try:
-            if idcombo in segment_dict:
-                key = idcombo
-                segment_obj = {key : segment_dict[key]} 
-            else:
-                key = idcombo2
-                segment_obj = {key : segment_dict[key]} 
+            segment_obj = {key: segment_dict[key]}
                 
             segment_obj = json.dumps(segment_obj)
             #safe_print(f"Found {len(segment_dict[key])} segments for {key}", file=sys.stderr)
             
-        except Exception as e:
+        except KeyError as e:
+            raise KeyError(f"The pair {key}, was not in the segment data. This error is unexpected and should be reported in GitHub. Error msg: {str(e)}")
+        except Exception as e:  
             raise Exception(f"Failed to prepare segment data for {key}: {str(e)}")
 
         # Step 4: Set up ERSA options
