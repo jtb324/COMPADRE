@@ -5,7 +5,7 @@ description = "helper api that COMPADRE can reach out to, in order to gather inf
 authors = [
     {name = "jtb", email = "james.baker@vanderbilt.edu"},
 ]
-dependencies = []
+dependencies = ["pandas>=2.3.3", "scikit-learn>=1.7.2", "xopen>=2.0.2", "matplotlib>=3.10.7", "fastapi[standard]>=0.121.0"]
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "Apache 2"}
