@@ -1,0 +1,19 @@
+[project]
+name = "ersa_helper"
+version = "0.1.0"
+description = "helper api that COMPADRE can reach out to, in order to gather information from ERSA about each pairwise segment"
+authors = [
+    {name = "jtb", email = "james.baker@vanderbilt.edu"},
+]
+dependencies = []
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "Apache 2"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
