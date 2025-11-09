@@ -1,0 +1,19 @@
+[project]
+name = "ibd_db"
+version = "0.1.0"
+description = "api to interact with the database that will contain IBD segments"
+authors = [
+    {name = "J.T. Baker", email = "james.baker@vanderbilt.edu"},
+]
+dependencies = ["fastapi>=0.121.1", "redis[hiredis]>=7.0.1"]
+requires-python = ">=3.13"
+readme = "README.md"
+license = {text = "Apache 2"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
