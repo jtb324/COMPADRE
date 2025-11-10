@@ -5,7 +5,7 @@ description = "api to interact with the database that will contain IBD segments"
 authors = [
     {name = "J.T. Baker", email = "james.baker@vanderbilt.edu"},
 ]
-dependencies = ["fastapi>=0.121.1", "redis[hiredis]>=7.0.1"]
+dependencies = ["fastapi>=0.121.1", "redis[hiredis]>=7.0.1", "xopen>=2.0.2", "isal>=1.8.0"]
 requires-python = ">=3.13"
 readme = "README.md"
 license = {text = "Apache 2"}
@@ -17,3 +17,8 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
+
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+]
