@@ -1,0 +1,42 @@
+from fastapi import FastAPI, Depends, HTTPException, Request, status
+import redis.asyncio as aredis
+import redis
+from contextlib import asynccontextmanager
+
+
+# The async context manager function as our connection pool that is made once for the lifespan of the application
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("initializing redis pool")
+    app.state.redis = await aredis.from_url("redis://localhost:6379")
+    try:
+        yield
+    finally:
+        print("shutting down server and closing the redis pool")
+        await app.state.redis.aclose()
+
+
+# We can return a connection from the pool rather than remake it
+async def get_redis_connection(request: Request) -> aredis.Redis:
+    return request.app.state.redis
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+async def read_root():
+    return {"return_code": 200, "message": "FastAPI IBD segment server"}
+
+
+@app.get("/health/")
+async def health_check(redis_conn: aredis.Redis = Depends(get_redis_connection)):
+    try:
+        await redis_conn.ping()
+
+        return {"status_code": status.HTTP_200_OK, "message": "Redis service is active"}
+    except redis.exceptions.ConnectionError as e:
+        return {
+            "status_code": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "message": "Unable to reach the redis server",
+        }
