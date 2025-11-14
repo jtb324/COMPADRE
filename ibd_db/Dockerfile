@@ -28,6 +28,7 @@ RUN python -m pip install --upgrade pip \
 # Copy source code
 COPY src/ /app/src/
 
+
 # Install production dependencies from the lock into .venv in the project
 RUN pdm install --prod
 
@@ -46,6 +47,7 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copy application source
 COPY src/ /app/src/
+COPY scripts/ /app/scripts/
 
 # # Ensure the package source can be imported
 # ENV PYTHONPATH=/app/src

@@ -11,11 +11,25 @@ services:
     ports:
       - "0.0.0.0:8080:8080"
     depends_on:
-      - redis-service
+      setup-script:
+        condition: service_completed_successfully
     networks:
       - ibd-db-net
     env_file: ".env"
-    
+
+  setup-script:
+    build: .
+    command: ["python3", "scripts/load_segments.py", "--input", "/app/${IBDFILENAME}", "--env", ".env"]
+    depends_on:
+      - redis-service
+    environment:
+      - REDIS_URL=${REDIS_URL}
+    env_file: ".env"
+    volumes:
+      - "${TESTFILEPATH}:/app/${IBDFILENAME}"
+    networks:
+      - ibd-db-net
+
 networks:
   ibd-db-net:
     driver: bridge

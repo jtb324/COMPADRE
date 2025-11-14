@@ -7,7 +7,9 @@ import json
 from redis.retry import Retry
 from redis.backoff import ExponentialBackoff
 from typing import Any, Generator
-from collections import namedtuple
+from collections import namedtuple  
+from dotenv import load_dotenv
+import os
 
 SegmentInfo = namedtuple("SegmentInfo", ["id1", "id2", "values"])
 
@@ -248,21 +250,33 @@ def main() -> None:
         help="This is the port that will be used to connect to the redis database.",
     )
 
+    parser.add_argument(
+        "--env",
+        required=False,
+        type=Path,
+        help="path to a dotenv file that contains environment variables for the application",
+    )
+
     args = parser.parse_args()
     # we need to create connect to the redis database
     #
     # Lets initialize the runtime state
+    if args.env:
+        load_dotenv(dotenv_path=args.env)
+        redis_url = os.getenv("REDIS_URL")
+    else:
+        redis_url = os.getenv("REDIS_URL","redis://localhost:6379")
+    
+
     state = RuntimeState(args.min_cm)
 
-    print(f"connecting to a redis database at localhost on port {args.port}")
+    print("connecting to a redis database")
 
     retries = Retry(ExponentialBackoff(), 8)
     try:
-        r = redis.Redis(
-            host="localhost",
-            port=args.port,
+        r = redis.from_url(
+            redis_url,
             decode_responses=True,
-            health_check_interval=3,
             retry=retries,
         )
 
@@ -273,15 +287,18 @@ def main() -> None:
             sys.exit(1)
 
     except redis.exceptions.ConnectionError as e:
-        print(f"Failed to open the database becaause of the following error:\n{str(e)}")
+        print(f"Failed to open the database because of the following error:\n{str(e)}")
         sys.exit(1)
 
     # Start reading in the file. The runtime state obj will have the centimoran threshold already
     file_iterator = read_segment_data(args.input, state)
+    print(list(file_iterator))
 
-    for segment_info in file_iterator:
-        add_values_to_db(segment_info, r)
+    # for segment_info in file_iterator:
+    #     print(f"segment info: {segment_info}")
+    #     add_values_to_db(segment_info, r)
 
+    print("finished loading all segments into the redis database")
     # if segment_dict:  # Only if we have segments loaded
     #     additional_options = update_min_cm(
     #         additional_options, segment_dict
