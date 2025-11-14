@@ -4,6 +4,9 @@ import redis
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from contextlib import asynccontextmanager
+import os
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 
 retry = Retry(ExponentialBackoff(), 8)
