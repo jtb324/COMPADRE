@@ -8,7 +8,6 @@ import os
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-
 retry = Retry(ExponentialBackoff(), 8)
 
 
@@ -16,8 +15,9 @@ retry = Retry(ExponentialBackoff(), 8)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("initializing redis pool")
+    print(REDIS_URL)
     app.state.redis = await aredis.from_url(
-        "redis://localhost:6379", decode_responses=True, retry=retry
+        REDIS_URL, decode_responses=True, retry=retry
     )
     try:
         yield
