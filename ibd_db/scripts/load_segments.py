@@ -1,5 +1,6 @@
 import argparse
 import sys
+import time
 from xopen import xopen
 from pathlib import Path
 import redis
@@ -203,6 +204,64 @@ def read_segment_data(
             yield SegmentInfo(*[iid1, iid2, value])  # TODO: fix the type annotation
 
 
+def check_pair_count(
+    redis_client: redis.Redis,
+    expected_count: int,
+    max_retries: int = 5,
+    backoff_factor: int = 2,
+) -> tuple[bool, int]:
+    """checks if the size of the database is what we would expect. If
+    the values don't match then we use exponential backoff to try to let
+    the database catch up
+
+    Parameters
+    ----------
+    redis_client : redis.Redis
+        redis object that we can query to get the size of the database
+
+    expected_count : int
+        number of pairs that were read into the database that also passed
+        the minimum cM threshold.
+
+    max_retries : int
+        number of times to retry the database query to check for size.
+        This will be used to determine the number of times to perform
+        the exponential backoff. Default = 5
+
+    backoff_factor : int
+        factor that will be multiplied against to determine how many
+        seconds to wait on each retry. Default = 2
+
+    Returns
+    -------
+    tuple[bool, int]
+        returns a tuple. The first element is a boolean indicating that
+        the database does or does not contain all the pairs that we expect
+        it to. This function will only return false if it has retried the
+        database query the max_retries number of times and the database still
+        has the wrong size. The second element is the size of the database
+    """
+    retry_count = 0
+    db_size = 0
+
+    counts_match = False
+
+    while retry_count <= max_retries:
+        try:
+            db_size = redis_client.dbsize()
+            if db_size == expected_count:
+                counts_match = True
+                break
+            else:
+                retry_count += 1
+                backoff_time = backoff_factor**retry_count
+                time.sleep(backoff_time)
+        except redis.exceptions.ConnectionError as e:
+            raise e
+
+    return counts_match, db_size
+
+
 # Figure out the true min_cm to be passed into ERSA based on the contents of segment_dict
 def add_values_to_db(info: SegmentInfo, db_handler: redis.Redis) -> None:
     """add the value of interest to the database"""
@@ -290,16 +349,25 @@ def main() -> None:
             print("ERROR: the service is not available. Exiting program...")
             sys.exit(1)
 
+        # Start reading in the file. The runtime state obj will have the centimoran threshold already
+        file_iterator = read_segment_data(args.input, state)
+
+        for segment_info in file_iterator:
+            add_values_to_db(segment_info, r)
+
+        count_matches, db_size = check_pair_count(r, state.pairs_read_in)
+        if count_matches:
+            print(f"Read {db_size} pairs into the database")
+        else:
+            print(
+                f"Warning: expected {state.pairs_read_in} to be in the database. Found {db_size}"
+            )
+
     except redis.exceptions.ConnectionError as e:
         print(f"Failed to open the database because of the following error:\n{str(e)}")
         sys.exit(1)
 
-    # Start reading in the file. The runtime state obj will have the centimoran threshold already
-    file_iterator = read_segment_data(args.input, state)
-
-    for segment_info in file_iterator:
-        add_values_to_db(segment_info, r)
-
+    print("finished loading IBD segments into the database")
     # if segment_dict:  # Only if we have segments loaded
     #     additional_options = update_min_cm(
     #         additional_options, segment_dict

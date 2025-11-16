@@ -16,14 +16,21 @@ services:
     networks:
       - ibd-db-net
     env_file: ".env"
+    command: ["fastapi", "run", "./src/ibd_db/main.py", "--port", "8080"]
 
   setup-script:
     build: .
-    command: ["python3", "scripts/load_segments.py", "--input", "/app/${IBDFILENAME}", "--env", ".env"]
+    command:
+      [
+        "python3",
+        "scripts/load_segments.py",
+        "--input",
+        "/app/${IBDFILENAME}",
+        "--env",
+        ".env",
+      ]
     depends_on:
       - redis-service
-    environment:
-      - REDIS_URL=${REDIS_URL}
     env_file: ".env"
     volumes:
       - "${TESTFILEPATH}:/app/${IBDFILENAME}"
@@ -33,3 +40,4 @@ services:
 networks:
   ibd-db-net:
     driver: bridge
+
