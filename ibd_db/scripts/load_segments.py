@@ -7,7 +7,7 @@ import json
 from redis.retry import Retry
 from redis.backoff import ExponentialBackoff
 from typing import Any, Generator
-from collections import namedtuple  
+from collections import namedtuple
 from dotenv import load_dotenv
 import os
 
@@ -22,6 +22,7 @@ class RuntimeState:
         self.ibd2_status = "false"
         self.min_cm_threshold = min_cm_threshold
         self.min_cm_encountered = -1.0
+        self.pairs_read_in = 0
 
 
 def convert_value(value):
@@ -137,7 +138,8 @@ def read_segment_data(
 
             # If the segment is shorter than the minimum centimorgan
             # threshold then we can just skip the line
-            if float(ls[4]) <= runtime_state.min_cm_threshold:
+
+            if float(ls[4]) < runtime_state.min_cm_threshold:
                 continue
 
             if len(ls) == 7:  # File with segment-by-segment IBD status in 7th column
@@ -197,6 +199,7 @@ def read_segment_data(
                 runtime_state.min_cm_encountered = cmlen
             elif runtime_state.min_cm_encountered > cmlen:
                 runtime_state.min_cm_encountered = cmlen
+            runtime_state.pairs_read_in += 1
             yield SegmentInfo(*[iid1, iid2, value])  # TODO: fix the type annotation
 
 
@@ -264,9 +267,10 @@ def main() -> None:
     if args.env:
         load_dotenv(dotenv_path=args.env)
         redis_url = os.getenv("REDIS_URL")
+        # If a new min cm threshold is provided then we can update that
+        args.min_cm = float(os.getenv("MIN_CM_THRESHOLD", args.min_cm))
     else:
-        redis_url = os.getenv("REDIS_URL","redis://localhost:6379")
-    
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 
     state = RuntimeState(args.min_cm)
 
@@ -292,13 +296,10 @@ def main() -> None:
 
     # Start reading in the file. The runtime state obj will have the centimoran threshold already
     file_iterator = read_segment_data(args.input, state)
-    print(list(file_iterator))
 
-    # for segment_info in file_iterator:
-    #     print(f"segment info: {segment_info}")
-    #     add_values_to_db(segment_info, r)
+    for segment_info in file_iterator:
+        add_values_to_db(segment_info, r)
 
-    print("finished loading all segments into the redis database")
     # if segment_dict:  # Only if we have segments loaded
     #     additional_options = update_min_cm(
     #         additional_options, segment_dict
