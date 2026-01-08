@@ -18,7 +18,7 @@ from pop_classifier import run_new as run_pop_classifier
 
 def signal_handler(signum, frame):
     try:
-        if "server_socket" in globals():
+        if "server_socket" in globals() and server_socket:
             server_socket.close()
     except:
         pass
@@ -191,15 +191,21 @@ def create_socket() -> socket.socket:
 PortResponse = Tuple[socket.socket | None, int | None, Exception | None]
 
 
-# TODO: make this recursive
-def find_available_port(
-    preferred_port, host="localhost", current_attempt: int = 0, max_attempts=100
+def start_server(
+    preferred_port: int,
+    host="localhost",
+    current_attempt: int = 0,
+    max_attempts: int = 100,
 ) -> PortResponse:
     """finds an open port. First test the port provided by the user and then attempt to open:wrap
     a socket for another port"""
 
     if current_attempt == max_attempts:
-        return None, None, Exception("Unable to find an open port after 100 attempts")
+        return (
+            None,
+            None,
+            Exception(f"Unable to find an open port after {max_attempts} attempts"),
+        )
 
     new_socket = create_socket()
 
@@ -215,37 +221,9 @@ def find_available_port(
                 file=sys.stderr,
             )
             port = random.randint(4001, 8000)  # Try ports in this range
-            return find_available_port(port, host, current_attempt + 1, max_attempts)
+            return start_server(port, host, current_attempt + 1, max_attempts)
         else:
             return None, None, e
-
-    # If preferred port is taken, try random ports in a range
-
-    for _ in range(max_attempts):
-        port = random.randint(4001, 8000)  # Try ports in this range
-        new_socket = create_socket()
-
-        try:
-            new_socket.bind((host, port))
-            new_socket.close()
-            error = None
-            return new_socket, port, None
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                new_socket.close()
-                safe_print(
-                    f"Port {port} is in use, searching for another port...",
-                    file=sys.stderr,
-                )
-                continue
-            else:
-                new_socket.close()
-                safe_print(
-                    f"Encountered an OSError for the port {port}. Skipping this port..."
-                )
-
-    return
-    raise Exception(f"Could not find an available port after {max_attempts} attempts")
 
 
 ########################################
@@ -382,55 +360,48 @@ def main(segment_data_file, portnumber, ersa_flag_str, output_directory):
     )
 
     # Find an available port
-    actual_port = find_available_port(portnumber, socket_host)
+    server_socket, actual_port, error = start_server(portnumber, socket_host)
+
+    if error:
+        ...  # TODO: we need to implement error handling to change what is returned by the socket
 
     # If port changed, notify via stderr first (before stdout message)
     if actual_port != portnumber:
         safe_print(f"Port changed: {actual_port}", file=sys.stderr)
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-    server_socket.settimeout(None)
+    safe_print(f"COMPADRE helper is ready on port {actual_port}")
 
-    try:
-        server_socket.bind((socket_host, actual_port))
-        server_socket.listen(1)
-        safe_print(f"COMPADRE helper is ready on port {actual_port}")
-        sys.stdout.flush()
-
-        while True:
-            try:
-                conn, address = server_socket.accept()
-                conn.settimeout(None)
-
-                # NEW: Handle the client connection with better error handling
-                handle_client_connection(
-                    conn,
-                    segment_dict,
-                    additional_options,
-                    ibd2_status,
-                    segment_data_file,
-                    output_directory,
-                )
-
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                safe_print(f"Error accepting connection: {str(e)}")
-                import traceback
-
-                safe_print(f"Traceback: {traceback.format_exc()}")
-                continue
-
-    except KeyboardInterrupt:
-        pass
-    finally:
+    if server_socket:
         try:
-            server_socket.close()
-        except:
+            while True:
+                try:
+                    conn, address = server_socket.accept()
+                    conn.settimeout(None)
+
+                    # NEW: Handle the client connection with better error handling
+                    handle_client_connection(
+                        conn,
+                        segment_dict,
+                        additional_options,
+                        ibd2_status,
+                        segment_data_file,
+                        output_directory,
+                    )
+
+                except KeyboardInterrupt:
+                    break
+                except Exception as e:
+                    safe_print(f"Error accepting connection: {str(e)}")
+                    import traceback
+
+                    safe_print(f"Traceback: {traceback.format_exc()}")
+                    continue
+
+        except KeyboardInterrupt:
             pass
-        safe_print("[COMPADRE] COMPADRE helper shutdown complete.")
+        finally:
+            server_socket.close()
+            safe_print("[COMPADRE] COMPADRE helper shutdown complete.")
 
 
 def handle_client_connection(
@@ -445,12 +416,16 @@ def handle_client_connection(
     try:
         msg = conn.recv(1024).decode()
 
-        if msg == "close":
-            conn.send("Closing server".encode())
+        if msg.strip() == "close":
+            response = json.dumps(
+                {"status": "success", "result": "", "message": "Closing server"}
+            )
+            conn.send(response)
             return
 
         if msg.strip() == "test":
-            conn.send("OK".encode())
+            response = json.dumps({"status": "success", "result": "", "message": "OK"})
+            conn.send(response)
             return
 
         ms = msg.strip().split("|")
@@ -467,27 +442,37 @@ def handle_client_connection(
                 predictions = run_pop_classifier(eigenvec_file, pop_file)
                 predictions = "|".join(str(x) for x in predictions)
 
-                conn.send(predictions.encode())
+                status = "success"
+                error_msg = ""
 
             except Exception as e:
-                error_msg = f"POP_CLASSIFIER_ERROR: {str(e)}\n{traceback.format_exc()}"
+                error_msg = (
+                    f"POP_CLASSIFIER_ERROR: {str(e)}\n{traceback.format_exc()}\n"
+                )
+                status = "error"
+                predictions = ""
                 safe_print(error_msg, file=sys.stderr)
-                conn.send(f"ERROR: {error_msg}".encode())
+            response = json.dumps(
+                {"status": status, "result": predictions, "message": error_msg}
+            )
+            conn.send(response)
 
         ########################################################
         # PADRE
         elif len(ms) >= 1 and ms[-1] == "padre":
+            # make output directory
+            ersa_dir = f"{output_directory}/ersa"
+            if not os.path.exists(ersa_dir):
+                os.makedirs(ersa_dir, exist_ok=True)
+            ersa_outfile = f"{ersa_dir}/output_all_ersa"
+
             try:
-                safe_print(f"Processing PADRE request", file=sys.stderr)
+                safe_print("Processing PADRE request", file=sys.stderr)
 
                 # object to pass to ersa is the WHOLE dictionary
                 segment_obj = json.dumps(segment_dict)
 
                 # make output directory
-                ersa_dir = f"{output_directory}/ersa"
-                if not os.path.exists(ersa_dir):
-                    os.makedirs(ersa_dir, exist_ok=True)
-                ersa_outfile = f"{ersa_dir}/output_all_ersa"
 
                 ersa_options = {
                     "segment_dict": segment_obj,
@@ -502,25 +487,28 @@ def handle_client_connection(
                 # merge with additional options
                 ersa_options.update(additional_options)
 
-                # safe_print(f"Running ERSA with options: {ersa_options}", file=sys.stderr)
                 ersa.runner(ersa_options)  # output written to file, not returned
-
-                conn.send(ersa_outfile.encode())  # return filepath it was written to
+                error_msg = ""
+                status = "success"
 
             except Exception as e:
-                error_msg = f"PADRE_ERROR: {str(e)}\n{traceback.format_exc()}"
+                error_msg = f"PADRE_ERROR: {str(e)}\n{traceback.format_exc()}\n"
+                ersa_outfile = ""
+                status = "error"
                 safe_print(error_msg, file=sys.stderr)
-                conn.send(f"ERROR: {error_msg}".encode())
+
+            response = json.dumps(
+                {"status": status, "result": ersa_outfile, "message": error_msg}
+            )
+            conn.send(response)
 
         ########################################################
         # Pairwise ERSA processing
         elif len(ms) >= 4:
+            id1, id2, vector_str, analysis_type = ms
             try:
-                id1, id2, vector_str, analysis_type = ms
-                # safe_print(f"Processing ERSA for {id1} <-> {id2}", file=sys.stderr)
-
                 # Process the pairwise request
-                result = process_pairwise_ersa(
+                ersa_result = process_pairwise_ersa(
                     id1,
                     id2,
                     vector_str,
@@ -532,23 +520,37 @@ def handle_client_connection(
                     output_directory,
                 )
 
-                conn.send(result.encode())
+                error_msg = ""
+                status = "success"
 
             except Exception as e:
-                error_msg = f"ERSA_ERROR: Failed to process {id1} <-> {id2}: {str(e)}\n{traceback.format_exc()}"
+                error_msg = f"ERSA_ERROR: Failed to process {id1} <-> {id2}: {str(e)}\n{traceback.format_exc()}\n"
                 safe_print(error_msg, file=sys.stderr)
-                conn.send(f"ERROR: {error_msg}".encode())
+                ersa_result = ""
+                status = "error"
 
+            result = json.dumps(
+                {"status": status, "result": ersa_result, "message": error_msg}
+            )
+            conn.send(result)
         else:
-            error_msg = f"UNKNOWN_COMMAND: Received message with {len(ms)} parts: {ms}"
+            error_msg = (
+                f"UNKNOWN_COMMAND: Received message with {len(ms)} parts: {ms}\n"
+            )
             safe_print(error_msg, file=sys.stderr)
-            conn.send(f"ERROR: {error_msg}".encode())
+            response = json.dumps(
+                {"status": "error", "result": "", "message": error_msg}
+            )
+            conn.send(response)
 
     except Exception as e:
-        error_msg = f"SOCKET_ERROR: {str(e)}\n{traceback.format_exc()}"
+        error_msg = f"SOCKET_ERROR: {str(e)}\n{traceback.format_exc()}\n"
         safe_print(error_msg, file=sys.stderr)
         try:
-            conn.send(f"ERROR: {error_msg}".encode())
+            response = json.dumps(
+                {"status": "error", "result": "", "message": error_msg}
+            )
+            conn.send(response)
         except:
             pass  # Socket might be closed
     finally:
