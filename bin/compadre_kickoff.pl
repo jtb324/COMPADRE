@@ -15,8 +15,8 @@ use File::Find;
 use File::Basename;
 use File::Spec;
 #use warnings;
-use IO::Socket::INET; # added for socket compadre helper connectionuse IPC::Open2;
-use IPC::Open2; # also for new compadre helper
+use IO::Socket::INET; # added for socket compadre helper connectionuse IPC::Open3;
+use IPC::Open3; # also for new compadre helper
 
 my @commandline_options = @ARGV;
 
@@ -221,10 +221,6 @@ print_files_and_settings() if $verbose > 0;
 
 if($max_generations eq 'none'){$max_generations = 1000}
 
-# if(-d $output_dir)
-# {
-# 	system("mv $output_dir $output_dir\_OLD");
-# }
 
 
 #################### RUN PROGRAMS ###########################
@@ -232,7 +228,7 @@ if($generate_likelihood_vectors_only)
 {
   generate_likelihood_vectors_only();
   print "done.\n";
-  exit;
+  exit
 }
 
 if($run_prePRIMUS){
@@ -561,6 +557,17 @@ sub print_files_and_settings {
 	my $parent_dir = File::Spec->catdir(dirname($libpath));
 	my $helper_path = File::Spec->catfile($parent_dir, 'compadre.py');
 
+  # add a check to make sure that the compadre.py filepath exists. It 
+  # should be this is a safeguard that will allow us to fail fast if 
+  # the script has been deleted for some reason.
+  unless (-e $helper_path) {
+    print $LOG "The file: $helper_path, for the ersa socket was not found. This behavior is not expected and the file may have been deleted accidently. Please redownload the file from GitHub. Exiting now...";
+
+    die "The file: $helper_path, for the ersa socket was not found. This behavior is not expected and the file may have been deleted accidently. Please redownload the file from GitHub. Exiting now...";
+
+  }
+  
+  # reading and writing stream that will be used to handle data going in and out of the python socket
 	my ($reader, $writer);
 
 	# Check if ersa data is passed in at runtime. If it is, send that path, and if not, send 'NA'
@@ -581,47 +588,52 @@ sub print_files_and_settings {
 		}
 	}
 
-	# Open socket
-	#my $pid = open2($reader, $writer, "python3 $helper_path $ersa_arg $port_number \"$ersa_flags\" $output_dir");
-	my $pid = open2($reader, $writer, 'python3', $helper_path, $ersa_arg, $port_number, $ersa_flags, $output_dir);
+  # switch this from open2 to open3 because open2 doesn't actually merge stderr and stdout. 
+	my $pid = open3($writer, $reader, $reader, 'python3', $helper_path, $ersa_arg, $port_number, $ersa_flags, $output_dir);
 
 	if (!defined $pid) {
+    print $LOG "Failed to launch COMPADRE helper: $!\n\n";
 		die "Failed to launch COMPADRE helper: $!\n\n";
 	}
 	$compadre_pid = $pid;
 
 	# Wait for the server to be ready and check for port changes
-    my $actual_port = $port_number;  # Default to requested port
+  my $actual_port = $port_number;  # Default to requested port
 
 	while (my $line = <$reader>) {
 
-        # Check for port change notification (comes via stderr which open2 merges)
-        if ($line =~ /Port changed: (\d+)/) {
-            $actual_port = $1;
-			$port_number = $actual_port;
+    # Check for port change notification (comes via stderr which open3 merges)
+    if ($line =~ /Port changed: (\d+)/) {
+        $actual_port = $1;
+  $port_number = $actual_port;
 
-            print "\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
-            print $LOG "[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
-        }
+        print "\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
+        print $LOG "[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n";
+    }
 
-        # Always parse the actual port from the "ready" line on stdout
+    # Always parse the actual port from the "ready" line on stdout. The 
+    # capture group (\d+) will catch the port number and save it to the 
+    # $1 variable
 		elsif ($line =~ /COMPADRE helper is ready on port\s+(\d+)/) {
 			$actual_port = $1;  # <-- CRITICAL: take the authoritative port from stdout
 			chomp $line;
 			print "\n$line\n";
+      print $LOG "\n$line\n";
 
 			# Overwrite the working port so all later steps use it
 			$port_number = $actual_port;
 
+      # weird perl keyword that ends the while loop
 			last;
 		}
 
-        elsif ($line =~ /ERROR|FAILED|Exception/) {
-            die "COMPADRE error: $line\n";
-        }
+      elsif ($line =~ /ERROR|FAILED|Exception/) {
+          print $LOG "COMPADRE error: $line\n";
+          die "COMPADRE error: $line\n";
+      }
     }
 	
-	our $compadre_pid = $pid;
+	# our $compadre_pid = $pid;
 
 	print "\nReference file specification: $reference_pop\n\n" if $reference_pop ne "";
 	print $LOG "Reference file specification: $reference_pop\n\n" if $reference_pop ne "";

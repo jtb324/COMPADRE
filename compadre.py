@@ -363,7 +363,7 @@ def main(
     additional_options: dict,
     ibd2_status: str,
     portnumber: int,
-    output_directory,
+    output_directory: str,
 ):
 
     signal.signal(signal.SIGINT, signal_handler)  # CTRL+C
@@ -381,13 +381,18 @@ def main(
     server_socket, actual_port, error = start_server(portnumber, socket_host)
 
     if error:
-        ...  # TODO: we need to implement error handling to change what is returned by the socket
+        safe_print(
+            f"Encountered the following error while trying to start the compadre.py server: {str(error)}",
+            file=sys.stderr,
+        )
+        raise error
 
     # If port changed, notify via stderr first (before stdout message)
     if actual_port != portnumber:
         safe_print(f"Port changed: {actual_port}", file=sys.stderr)
 
     safe_print(f"COMPADRE helper is ready on port {actual_port}")
+    sys.stdout.flush()
 
     if server_socket:
         try:
@@ -438,7 +443,7 @@ def handle_client_connection(
                     response = json.dumps(
                         {"status": "success", "result": "", "message": "OK"}
                     )
-                    conn.send(response)
+                    conn.send(response + "\n")
                     return False
 
                 ms = line.strip().split("|")
@@ -466,7 +471,7 @@ def handle_client_connection(
                     response = json.dumps(
                         {"status": status, "result": predictions, "message": error_msg}
                     )
-                    conn.send(response)
+                    conn.send(response + "\n")
 
                 ########################################################
                 # PADRE
@@ -513,7 +518,7 @@ def handle_client_connection(
                     response = json.dumps(
                         {"status": status, "result": ersa_outfile, "message": error_msg}
                     )
-                    conn.send(response)
+                    conn.send(response + "\n")
 
                 ########################################################
                 # Pairwise ERSA processing
@@ -548,14 +553,14 @@ def handle_client_connection(
                     result = json.dumps(
                         {"status": status, "result": ersa_result, "message": error_msg}
                     )
-                    conn.send(result)
+                    conn.send(result + "\n")
                 else:
                     error_msg = f"UNKNOWN_COMMAND: Received message with {len(ms)} parts: {ms}\n"
                     safe_print(error_msg, file=sys.stderr)
                     response = json.dumps(
                         {"status": "error", "result": "", "message": error_msg}
                     )
-                    conn.send(response)
+                    conn.send(response + "\n")
     except KeyboardInterrupt:
         return True
 
