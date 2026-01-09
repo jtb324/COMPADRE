@@ -9,6 +9,7 @@ use IPC::Open2;
 use Cwd qw(abs_path);
 use File::Find;
 use File::Basename;
+use Socket::socket_helper qw(send_to_compadre_helper);
 
 ###################################################################################
 
@@ -16,68 +17,6 @@ use File::Basename;
 # Currently, only the PCA command uses plink2
 
 ###################################################################################
-
-# sub send_to_compadre_helper {
-
-#     my ($data, $port) = @_;
-#     $port //= 6000;  
-# 	my $host = $ENV{COMPADRE_HOST} // 'localhost';
-
-#     my $socket = IO::Socket::INET->new(
-#         PeerAddr => $host,
-#         PeerPort => $port,
-#         Proto    => 'tcp',
-#     ) or die "Cannot connect to Python server: $!\n";
-
-#     $socket->print($data);
-    
-#     my $response = <$socket>;
-#     if (defined $response) {
-#         chomp $response;
-#     } else {
-#         $response = "No response";
-#     }
-    
-#     close($socket);
-#     return $response;
-# }
-
-sub send_to_compadre_helper {
-    my ($data, $port) = @_;
-    $port //= 6000;  
-    my $host = $ENV{COMPADRE_HOST} // 'localhost';
-
-    my $socket = IO::Socket::INET->new(
-        PeerAddr => $host,
-        PeerPort => $port,
-        Proto    => 'tcp',
-        Timeout  => 0,  # Set to 0 for no timeout (indefinite)
-    ) or die "Cannot connect to Python server: $!\n";
-
-    # Enable keep-alive on the socket
-    $socket->sockopt(SO_KEEPALIVE, 1) if $socket->can('sockopt');
-    $socket->blocking(1);
-
-    my $bytes_sent = $socket->print($data);
-    if (!defined $bytes_sent) {
-        close($socket);
-        die "Failed to send data to Python server: $!\n";
-    }
-    
-    $socket->flush();
-    
-    # Read response with error checking
-    my $response = <$socket>;
-    if (defined $response) {
-        chomp $response;
-    } else {
-        $response = "No response";
-        warn "No response received from Python server\n";
-    }
-    
-    close($socket);
-    return $response;
-}
 
 # Get absolute location of this file and use that to define additional paths of interest
 my $preprimus_script_path = abs_path($0);
@@ -761,13 +700,18 @@ sub pick_reference_populations {
 
 	my $port_number = $main::port_number_glob;
 	my $onekg_idfile = "$onekg/1KG_pop_classifier_ids.txt";
-	my $socket_data = "$data_stem.eigenvec|$onekg_idfile|pop_classifier";
+  # create the data to send to the socket. The socket is reading line by 
+  # line so we need to add a newline charcter to make sure it knows that 
+  # it has a complete line to read
+	my $socket_data = "$data_stem.eigenvec|$onekg_idfile|pop_classifier\n";
 
 	# Run population classifier and return the top populations as @ref_pops
 	my $ref_pops_str = send_to_compadre_helper($socket_data, $port_number);
 
 	if($ref_pops_str eq 'No response')
 	{
+    print $LOG "Error, while running PCA. The python server through the following error: "
+    # TODO: I think this error message is out of date because now we are using a python script to do PCA
 		die "Error. Run population classifier script in isolation with PLINK's PCA *.eigenvec file for more information.  You can also manually select reference sub-populations (ex., CEU) and rerun COMPADRE with the --ref_pops [POP] option\n";
 	}
 
