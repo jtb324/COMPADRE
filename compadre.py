@@ -33,13 +33,14 @@ def signal_handler(signum, frame):
 
 
 def safe_print(*args, **kwargs):
+    file = kwargs.get("file", sys.stdout)
     try:
-        print(*args, **kwargs)
-        sys.stdout.flush()
+        print(*args, flush=True, **kwargs)
     except BrokenPipeError:
         # Python flushes standard streams on exit, so redirect remaining output to devnull to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
+        os.dup2(devnull, sys.stderr.fileno())
         sys.exit(0)  # Python exits with error code 1 on EPIPE
 
 
@@ -392,7 +393,6 @@ def main(
         safe_print(f"Port changed: {actual_port}", file=sys.stderr)
 
     safe_print(f"COMPADRE helper is ready on port {actual_port}")
-    sys.stdout.flush()
 
     if server_socket:
         try:
