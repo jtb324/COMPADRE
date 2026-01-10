@@ -31,6 +31,7 @@ sub send_to_compadre_helper {
     $port //= 6000;  
     my $host = $ENV{COMPADRE_HOST} // 'localhost';
 
+
     # We are going to implement an exponential backoff retry strategy for 
     # the socket just incase there are weird network issues. The 
     # IO::Socket::INET->new returns undef if it timeouts waiting for the 
@@ -74,6 +75,7 @@ sub send_to_compadre_helper {
 
 
     my $bytes_sent = $socket->print($data);
+    
     if (!defined $bytes_sent) {
         close($socket);
         die "Failed to send data to Python server: $!\n";

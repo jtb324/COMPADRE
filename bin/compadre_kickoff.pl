@@ -71,6 +71,8 @@ my $LOG;
 our $compadre_pid;
 our $cleanup_called = 0; 
 our $port_number_glob;
+# We are also going to spawn a listener process that will allow us to continue logging values from the python server even when teh perl code moves on after its main loop
+our $listener_pid;
 
 sub cleanup_compadre {
     my $sig = shift;
@@ -105,6 +107,13 @@ sub cleanup_compadre {
                 kill('KILL', $compadre_pid) if kill(0, $compadre_pid);
             }
         }
+    }
+    # We need to repeat the same process to shutdown the listener process
+    if (defined $listener_pid) {
+        print "closing the listener process at $listener_pid\n";
+       kill('TERM', $listener_pid);
+       sleep(1);
+       kill('KILL', $listener_pid) if kill(0, $listener_pid);
     }
     
     exit(0) unless $sig eq 'END';
@@ -623,8 +632,43 @@ sub print_files_and_settings {
 			# Overwrite the working port so all later steps use it
 			$port_number = $actual_port;
 
+      # We are going to add logic here to create a child process that can continue to read from the $reader in order to log messages from the python socket
+      # perl will return 0 for the child and the parent will continue. Imagine it like 2 threads are being formed although this is not threading 
+      my $forked_pid = fork();
+
+      if (!defined $forked_pid) {
+        print $LOG "Error: failed to fork a listener for the child process: $!";
+        die "failed to fork a listener for the child process. Terminating now...: $1";
+      }
+      if ($forked_pid == 0) {
+        # This block represents our listing process that will continue to
+        # read from the $reader and will print the output. This block 
+        # intentionally hangs until it gets cleaned up or the python program 
+        # closes the pipe.
+        
+        # Reset signal handler so child doesn't run parent's cleanup_compadre
+        $SIG{INT} = 'DEFAULT';
+        $SIG{TERM} = 'DEFAULT';
+
+        # We don't need to write to the socket so we can close that
+        close($writer);
+
+        while (my $line = <$reader>) {
+          print $line;
+          print $LOG $line if defined $LOG;
+        }
+        # If the pipe is closed by Python then we need to kill the program
+        exit(0);
+      }
+      else {
+        #This block represents the parent process
+        #We need to save the listener process id so that we can clean this up at the end of the program
+        $listener_pid = $forked_pid;
+        # This parent thread no longer needs to read from the socket and leaving it open could cause log messages to go missing.
+        close($reader);
+        last;
+      }
       # weird perl keyword that ends the while loop
-			last;
 		}
 
     elsif ($line =~ /ERROR|FAILED|Exception/) {

@@ -1,4 +1,5 @@
 from xopen import xopen
+import time
 import os
 import math
 import sys
@@ -381,7 +382,6 @@ def main(
 
     # Find an available port
     server_socket, actual_port, error = start_server(portnumber, socket_host)
-    print("connected to the socket")
 
     if error:
         safe_print(
@@ -395,6 +395,13 @@ def main(
         safe_print(f"Port changed: {actual_port}", file=sys.stderr)
 
     safe_print(f"COMPADRE helper is ready on port {actual_port}")
+
+    # The perl script forks a child process at this point so that it can
+    # continue to read from the buffer between python and perl without losing
+    # messages. This process is fast but might not be fast enough to get
+    # every message. We are going to pause quickly to make sure the perl
+    # program syncs with the python code
+    time.sleep(0.01)
 
     if server_socket:
         try:
@@ -431,7 +438,6 @@ def handle_client_connection(
     try:
         with conn.makefile("r") as conn_input:
             for line in conn_input:
-                print(line)
 
                 # we need to check to see if the value sent to the server indicates that we should shut it down
                 if line.strip() == "close":
@@ -454,7 +460,6 @@ def handle_client_connection(
                 # Population classifier
                 if len(ms) >= 3 and ms[-1] == "pop_classifier":
                     try:
-                        print("in pop classifier section")
                         safe_print("Processing pop_classifier request", file=sys.stdout)
 
                         eigenvec_file = ms[0]
@@ -707,7 +712,7 @@ if __name__ == "__main__":
     )
 
     safe_print(
-        f"INFO: Number of items in the segment_dict: {len(segment_dict)}",
+        f"INFO: Number of pairs read in that have pairwise IBD data: {len(segment_dict)}",
         file=sys.stdout,
     )
 
