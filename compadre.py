@@ -33,14 +33,12 @@ def signal_handler(signum, frame):
 
 
 def safe_print(*args, **kwargs):
-    file = kwargs.get("file", sys.stdout)
     try:
         print(*args, flush=True, **kwargs)
     except BrokenPipeError:
         # Python flushes standard streams on exit, so redirect remaining output to devnull to avoid another BrokenPipeError at shutdown
         devnull = os.open(os.devnull, os.O_WRONLY)
         os.dup2(devnull, sys.stdout.fileno())
-        os.dup2(devnull, sys.stderr.fileno())
         sys.exit(0)  # Python exits with error code 1 on EPIPE
 
 
@@ -273,11 +271,14 @@ def load_segment_information(
         shared pairwise IBD segments and the second element is whether
         or not there is IBD2 segment information in the file
     """
-
     segment_dict = {}
     ibd2_status = "false"
 
     if segment_data_file != "NA":
+        safe_print(
+            f"Reading in the pairwise IBD segment information from: {segment_data_file}",
+            file=sys.stdout,
+        )
 
         with xopen(
             segment_data_file, "r"
@@ -380,6 +381,7 @@ def main(
 
     # Find an available port
     server_socket, actual_port, error = start_server(portnumber, socket_host)
+    print("connected to the socket")
 
     if error:
         safe_print(
@@ -426,24 +428,24 @@ def handle_client_connection(
     segment_data_file,
     output_directory,
 ):
-
     try:
         with conn.makefile("r") as conn_input:
             for line in conn_input:
+                print(line)
 
                 # we need to check to see if the value sent to the server indicates that we should shut it down
                 if line.strip() == "close":
                     response = json.dumps(
                         {"status": "success", "result": "", "message": "Closing server"}
                     )
-                    conn.send(response + "\n")
+                    conn.send((response + "\n").encode())
                     return True
 
                 if line.strip() == "test":
                     response = json.dumps(
                         {"status": "success", "result": "", "message": "OK"}
                     )
-                    conn.send(response + "\n")
+                    conn.send((response + "\n").encode())
                     return False
 
                 ms = line.strip().split("|")
@@ -452,7 +454,8 @@ def handle_client_connection(
                 # Population classifier
                 if len(ms) >= 3 and ms[-1] == "pop_classifier":
                     try:
-                        # safe_print(f"Processing pop_classifier request", file=sys.stderr)
+                        print("in pop classifier section")
+                        safe_print("Processing pop_classifier request", file=sys.stdout)
 
                         eigenvec_file = ms[0]
                         pop_file = ms[1]
@@ -471,7 +474,7 @@ def handle_client_connection(
                     response = json.dumps(
                         {"status": status, "result": predictions, "message": error_msg}
                     )
-                    conn.send(response + "\n")
+                    conn.send((response + "\n").encode())
 
                 ########################################################
                 # PADRE
@@ -518,7 +521,7 @@ def handle_client_connection(
                     response = json.dumps(
                         {"status": status, "result": ersa_outfile, "message": error_msg}
                     )
-                    conn.send(response + "\n")
+                    conn.send((response + "\n").encode())
 
                 ########################################################
                 # Pairwise ERSA processing
@@ -553,14 +556,14 @@ def handle_client_connection(
                     result = json.dumps(
                         {"status": status, "result": ersa_result, "message": error_msg}
                     )
-                    conn.send(result + "\n")
+                    conn.send((result + "\n").encode())
                 else:
-                    error_msg = f"UNKNOWN_COMMAND: Received message with {len(ms)} parts: {ms}\n"
+                    error_msg = f"ERROR: During ERSA pairwise relatedness estimation received message with {len(ms)} parts: {ms}\n"
                     safe_print(error_msg, file=sys.stderr)
                     response = json.dumps(
                         {"status": "error", "result": "", "message": error_msg}
                     )
-                    conn.send(response + "\n")
+                    conn.send((response + "\n").encode())
     except KeyboardInterrupt:
         return True
 
@@ -571,11 +574,12 @@ def handle_client_connection(
             response = json.dumps(
                 {"status": "error", "result": "", "message": error_msg}
             )
-            conn.send(response)
+            conn.send((response + "\n").encode())
         except:
             pass  # Socket might be closed
     finally:
         conn.close()
+        return False
 
 
 def process_pairwise_ersa(
@@ -700,6 +704,11 @@ if __name__ == "__main__":
 
     segment_dict, ibd2_status = load_segment_information(
         segment_data_file, additional_options["min_cm"]
+    )
+
+    safe_print(
+        f"INFO: Number of items in the segment_dict: {len(segment_dict)}",
+        file=sys.stdout,
     )
 
     if segment_dict:  # Only if we have segments loaded

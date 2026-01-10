@@ -627,11 +627,15 @@ sub print_files_and_settings {
 			last;
 		}
 
-      elsif ($line =~ /ERROR|FAILED|Exception/) {
+    elsif ($line =~ /ERROR|FAILED|Exception/) {
           print $LOG "COMPADRE error: $line\n";
           die "COMPADRE error: $line\n";
-      }
     }
+    elsif ($line =~ /INFO:/) {
+      print $line;
+      print $LOG $line;
+    }
+  }
 	
 	# our $compadre_pid = $pid;
 
