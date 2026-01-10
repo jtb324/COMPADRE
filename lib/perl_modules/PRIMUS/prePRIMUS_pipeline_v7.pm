@@ -5,7 +5,6 @@ use Getopt::Long qw(GetOptionsFromArray);
 use PRIMUS::IMUS qw(run_IMUS);
 use File::Path qw(make_path);
 use IO::Socket::INET; 
-use IPC::Open2; 
 use Cwd qw(abs_path);
 use File::Find;
 use File::Basename;
@@ -710,7 +709,7 @@ sub pick_reference_populations {
 
 	if($ref_pops_str eq 'No response')
 	{
-    print $LOG "Error, while running PCA. The python server through the following error: "
+    print $LOG "Error, while running PCA. The python server through the following error: ";
     # TODO: I think this error message is out of date because now we are using a python script to do PCA
 		die "Error. Run population classifier script in isolation with PLINK's PCA *.eigenvec file for more information.  You can also manually select reference sub-populations (ex., CEU) and rerun COMPADRE with the --ref_pops [POP] option\n";
 	}

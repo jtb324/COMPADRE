@@ -5,7 +5,7 @@ use Data::Dumper;
 use File::Basename;
 use File::Spec;
 use IO::Socket::INET; # added for socket compadre helper connection
-use IPC::Open2; # also for new compadre helper
+use Socket::socket_helper qw(send_to_compadre_helper);
 
 my $KDE_density_resolution = 1000; 
 my $MIN_LIKELIHOOD = 0.1;
@@ -21,67 +21,6 @@ my $curr_bw;
 my $curr_kde_type;
 
 ######################################################################
-
-sub send_to_compadre_helper {
-    my ($data, $port) = @_;
-    $port //= 6000;  
-    my $host = $ENV{COMPADRE_HOST} // 'localhost';
-
-    #print "DEBUG: Attempting to connect to $host:$port with data: '$data'\n" if $verbose > 1;
-
-    my $socket = IO::Socket::INET->new(
-        PeerAddr => $host,
-        PeerPort => $port,
-        Proto    => 'tcp',
-        Timeout  => 30,  # Increase timeout for debugging
-    );
-    
-    if (!$socket) {
-        die "Cannot connect to Python server at $host:$port: $!\n";
-    }
-
-    # Enable keep-alive on the socket
-    $socket->sockopt(SO_KEEPALIVE, 1) if $socket->can('sockopt');
-    $socket->blocking(1);
-
-    #print "DEBUG: Connected successfully, sending data...\n" if $verbose > 1;
-
-    my $bytes_sent = $socket->print($data);
-    if (!defined $bytes_sent) {
-        close($socket);
-        die "Failed to send data to Python server: $!\n";
-    }
-
-    #print "DEBUG: Sent $bytes_sent bytes, waiting for response...\n" if $verbose > 1;
-    
-    $socket->flush();
-    
-    # Read response with error checking
-    my $response = <$socket>;
-    if (defined $response) {
-        chomp $response;
-        
-        # Check if response indicates an error
-        if ($response =~ /^ERROR:\s*(.*)$/s) {
-            close($socket);
-            my $error_details = $1;
-            die "Python COMPADRE helper error: $error_details\n";
-        }
-        elsif ($response =~ /^(ERSA_ERROR|PADRE_ERROR|SOCKET_ERROR):\s*(.*)$/s) {
-            close($socket);
-            my $error_type = $1;
-            my $error_details = $2;
-            die "Python $error_type: $error_details\n";
-        }
-        
-    } else {
-        $response = "No response";
-        warn "No response received from Python server\n";
-    }
-    
-    close($socket);
-    return $response;
-}
 
 # Closes the python socket when the Perl requests to it are done (PR done)
 sub close_socket {
@@ -317,7 +256,7 @@ sub get_relationship_likelihood_vectors {
 			if ($sum01 < 0.4) {
 
 				my $vector_str = join(',',@vector);
-				my $socket_data = "$name1|$name2|$vector_str|pairwise";
+				my $socket_data = "$name1|$name2|$vector_str|pairwise\n";
 				my $new_vector = send_to_compadre_helper($socket_data, $port_number);
 				chomp($new_vector);
 				

@@ -15,7 +15,7 @@ use File::Find;
 use File::Basename;
 use File::Spec;
 #use warnings;
-use IO::Socket::INET; # added for socket compadre helper connectionuse IPC::Open3;
+use IO::Socket::INET; # added for socket compadre helper connection
 use IPC::Open3; # also for new compadre helper
 
 my @commandline_options = @ARGV;
