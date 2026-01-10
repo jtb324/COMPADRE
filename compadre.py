@@ -421,6 +421,10 @@ def main(
                 )
 
                 if should_shutdown:
+                    safe_print(
+                        "INFO: received shutdown signal from the handle_client_connection function",
+                        file=sys.stdout,
+                    )
                     break
 
         finally:
@@ -585,7 +589,6 @@ def handle_client_connection(
             pass  # Socket might be closed
     finally:
         conn.close()
-        return False
 
 
 def process_pairwise_ersa(

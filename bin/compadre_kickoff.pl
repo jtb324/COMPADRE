@@ -22,12 +22,14 @@ my @commandline_options = @ARGV;
 
 #use lib '../lib/perl_modules';
 use Getopt::Long 2.13;
+use Socket::socket_helper qw(send_to_compadre_helper);
 use PRIMUS::IMUS qw(run_IMUS);
 use PRIMUS::reconstruct_pedigree_v7;
 use PRIMUS::predict_relationships_2D;
 use PRIMUS::prePRIMUS_pipeline_v7;
 use PRIMUS::PRIMUS_plus_ERSA;
 use File::Path qw(make_path);
+use POSIX ":sys_wait_h";
 
 use Cwd qw(abs_path);
 my $script_path = abs_path($0);
@@ -94,11 +96,14 @@ sub cleanup_compadre {
         } else {
             # For normal END cleanup, try graceful first
             eval {
-                my $shutdown_ack = send_to_compadre_helper("close", $port_number);
+                my $shutdown_ack = send_to_compadre_helper("close\n", $port_number);
                 print "COMPADRE graceful shutdown: $shutdown_ack\n" if $verbose > 0;
             };
             
-            sleep(1);
+            sleep(3);
+
+            # Check if process has already exited (reap zombie)
+            waitpid($compadre_pid, WNOHANG);
             
             if (kill(0, $compadre_pid)) {
                 print "Force terminating COMPADRE helper (PID: $compadre_pid)\n" if $verbose > 0;
@@ -486,7 +491,7 @@ sub run_PR {
 		print "Requesting ERSA output path from COMPADRE helper... (port $port_number_glob)\n" if $verbose > 1;
 		print $LOG "Requesting ERSA output path from COMPADRE helper... (port $port_number_glob)\n" if $verbose > 1;
 
-		my $ersa_output_path_prefix = PRIMUS::predict_relationships_2D::send_to_compadre_helper("padre\n", $port_number_glob);
+		my $ersa_output_path_prefix = send_to_compadre_helper("padre\n", $port_number_glob);
 
 		print "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 1;
 		print $LOG "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 1;
@@ -505,7 +510,7 @@ sub run_PR {
 
 	}
 
-	my $shutdown_ack = PRIMUS::predict_relationships_2D::send_to_compadre_helper("close", $port_number_glob);
+	my $shutdown_ack = send_to_compadre_helper("close\n", $port_number_glob);
 	print "COMPADRE socket shutdown message: $shutdown_ack\n" if $verbose > 0;	
 
 	## Write out pairwise Summary file based on the results in the Summary file and possible pedigrees
@@ -649,6 +654,9 @@ sub print_files_and_settings {
         # Reset signal handler so child doesn't run parent's cleanup_compadre
         $SIG{INT} = 'DEFAULT';
         $SIG{TERM} = 'DEFAULT';
+        
+        # Clear the PID so the END block doesn't try to cleanup the helper
+        undef $compadre_pid;
 
         # We don't need to write to the socket so we can close that
         close($writer);
