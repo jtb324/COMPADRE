@@ -15,11 +15,7 @@ use File::Find;
 use File::Basename;
 use File::Spec;
 #use warnings;
-<<<<<<< HEAD
 use IO::Socket::INET; # added for socket compadre helper connection
-=======
-use IO::Socket::INET; # added for socket compadre helper connectionuse IPC::Open3;
->>>>>>> ca6c73f3da2f1ca790273b6918bc4bfe9c3c66b7
 use IPC::Open3; # also for new compadre helper
 
 my @commandline_options = @ARGV;
@@ -475,7 +471,7 @@ sub run_PR {
 	print $LOG "done.\n" if $verbose > 0;
 
 	# convert ps to pdf files 
-	find(\&process_file, $output_dir);
+	find({ wanted => \&process_file, no_chdir => 1 }, $output_dir);
 
 	#print "converted .ps to .pdf.\n" if $verbose > 0;
 	#print $LOG "converted .ps to .pdf.\n" if $verbose > 0;
@@ -490,7 +486,7 @@ sub run_PR {
 		print "Requesting ERSA output path from COMPADRE helper... (port $port_number_glob)\n" if $verbose > 1;
 		print $LOG "Requesting ERSA output path from COMPADRE helper... (port $port_number_glob)\n" if $verbose > 1;
 
-		my $ersa_output_path_prefix = PRIMUS::predict_relationships_2D::send_to_compadre_helper("padre", $port_number_glob);
+		my $ersa_output_path_prefix = PRIMUS::predict_relationships_2D::send_to_compadre_helper("padre\n", $port_number_glob);
 
 		print "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 1;
 		print $LOG "Received ERSA output path prefix: $ersa_output_path_prefix\n" if $verbose > 1;
@@ -523,7 +519,7 @@ sub process_file
     if (/\.(ps)$/i) {
         my $file = $File::Find::name;
         (my $output_file = $file) =~ s/\.ps$/.pdf/i;
-        my $command = "ps2pdf -dFirstPage=2 $file $output_file";
+        my $command = "ps2pdf -dFirstPage=2 \"$file\" \"$output_file\"";
         system($command) == 0 or warn "Failed to execute: $command\n";
     }
 }
