@@ -395,6 +395,7 @@ def main(
         safe_print(f"Port changed: {actual_port}", file=sys.stderr)
 
     safe_print(f"COMPADRE helper is ready on port {actual_port}")
+    sys.stdout.flush()
 
     # The perl script forks a child process at this point so that it can
     # continue to read from the buffer between python and perl without losing

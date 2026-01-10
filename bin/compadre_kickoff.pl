@@ -15,7 +15,11 @@ use File::Find;
 use File::Basename;
 use File::Spec;
 #use warnings;
+<<<<<<< HEAD
 use IO::Socket::INET; # added for socket compadre helper connection
+=======
+use IO::Socket::INET; # added for socket compadre helper connectionuse IPC::Open3;
+>>>>>>> ca6c73f3da2f1ca790273b6918bc4bfe9c3c66b7
 use IPC::Open3; # also for new compadre helper
 
 my @commandline_options = @ARGV;
@@ -674,6 +678,7 @@ sub print_files_and_settings {
     elsif ($line =~ /ERROR|FAILED|Exception/) {
           print $LOG "COMPADRE error: $line\n";
           die "COMPADRE error: $line\n";
+
     }
     elsif ($line =~ /INFO:/) {
       print $line;
