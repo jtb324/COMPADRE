@@ -9,6 +9,7 @@ use Cwd qw(abs_path);
 use File::Find;
 use File::Basename;
 use Socket::socket_helper qw(send_to_compadre_helper);
+use Log::Log4perl;
 
 ###################################################################################
 
@@ -16,6 +17,9 @@ use Socket::socket_helper qw(send_to_compadre_helper);
 # Currently, only the PCA command uses plink2
 
 ###################################################################################
+
+# lets get the logger
+my $LOG = Log::Log4perl->get_logger(__PACKAGE__);
 
 # Get absolute location of this file and use that to define additional paths of interest
 my $preprimus_script_path = abs_path($0);
@@ -36,7 +40,6 @@ my $onekg = "$pmloc/lib/1KG";
 my $onekg_STEM = "$onekg/1KG_reference"; # new
 
 my $public_html_dir;
-open(my $LOG,"");
 
 ## Global paramenters
 my $verbose = 3;
@@ -141,7 +144,6 @@ sub run_prePRIMUS_main {
 		"study_name=s" => \$study_name, 
 		"output_dir=s" => \$output_dir,
 		"lib=s"=>\$lib_dir,
-		"log_file_handle=s"=>\$LOG,
 
 		# PLINK IBD PIPELINE settings
 		"file=s" => \$data_stem,		## behaves the same as bfile
@@ -181,7 +183,7 @@ sub run_prePRIMUS_main {
 		$memory_flag = "";
 	}
 	
-	print "Using a relatedness threshold of $min_pihat_threshold";
+	$LOG->proginfo("Using a relatedness threshold of $min_pihat_threshold");
 	#### Check/set inputs
 	test_paths();
 
@@ -191,12 +193,10 @@ sub run_prePRIMUS_main {
 	$study_name = get_file_name_from_stem($data_stem) if $study_name eq "";
 	$plink_silent = "--silent" if $verbose < 2;
 	make_path($output_dir) if !-d $output_dir;
-	open($LOG,">$output_dir/$study_name.log") if($LOG eq "");
+	# open($LOG,">$output_dir/$study_name.log") if($LOG eq "");
 
-	print "\n\nUsing PLINK to calculate IBD estimates for $study_name\n" if($verbose > 0);
-	print $LOG "\n\nUsing PLINK to calculate IBD estimates for $study_name\n" if($verbose > 0);
-	print "Study_name: $study_name\n" if $test;
-	print $LOG "Study_name: $study_name\n" if $test;
+	$LOG->info("\n\nUsing PLINK to calculate IBD estimates for $study_name\n");
+	$LOG->proginfo("Study_name: $study_name\n") if $test;
 
 	$data_stem = make_binary_version($data_stem,"$output_dir/$study_name");
 	
@@ -222,7 +222,7 @@ sub run_prePRIMUS_main {
 	#### use internal_ref
 	if($INTERNAL_REF)
 	{
-		print "\nRunning $data_stem using internal allele frequencies\n" if $verbose > 0;
+		$LOG->info("\nRunning $data_stem using internal allele frequencies\n");
 		my ($no_dup_stem, @dup_SNPs) = remove_dups($data_stem);
 		my $autosomal_no_dup_stem = remove_non_autosomal_SNPs($no_dup_stem);
 
@@ -242,8 +242,7 @@ sub run_prePRIMUS_main {
 	}
 	elsif($ALTERNATIVE_REF)
 	{
-		print "\nRunning $data_stem using $alt_ref_stem as a reference\n" if $verbose > 0;
-		print $LOG "\nRunning $data_stem using $alt_ref_stem as a reference\n" if $verbose > 0;
+		$LOG->info("\nRunning $data_stem using $alt_ref_stem as a reference\n");
 		my ($no_dup_stem, @dup_SNPs) = remove_dups($data_stem);
 		my $autosomal_no_dup_stem = remove_non_autosomal_SNPs($no_dup_stem);
 		
@@ -271,8 +270,7 @@ sub run_prePRIMUS_main {
 	}
 	else ## Use 1KG as a reference
 	{
-		print "\nRunning $data_stem using 1KG to find an appropriate reference\n" if $verbose > 0;
-		print $LOG "\nRunning $data_stem using 1KG to find an appropriate reference\n" if $verbose > 0;
+		$LOG->info("\nRunning $data_stem using 1KG to find an appropriate reference\n");
 		my ($no_dup_stem, @dup_SNPs) = remove_dups($data_stem);
 		my $autosomal_no_dup_stem = remove_non_autosomal_SNPs($no_dup_stem);
 		
@@ -295,8 +293,7 @@ sub run_prePRIMUS_main {
 
 		if((is_admixed(@ref_pops) || $remove_AIMs ) && @unrelated_samples >= $MIN_SAMPLES_WITHOUT_REF && !$keep_AIMs)
 		{
-			print "\nREMOVING AIMS and >= $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
-			print $LOG "\nREMOVING AIMS and >= $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
+			$LOG->info("\nREMOVING AIMS and >= $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n");
 			my $PCA_plot = make_PCA_plot($autosomal_no_dup_stem,"",$study_name) if !$no_PCA_plot;
 			my($AIMs_file,@AIMs) = get_AIMs($autosomal_no_dup_stem);
 			$allele_freqs = get_allele_freqs($unrelated_stem);
@@ -306,8 +303,7 @@ sub run_prePRIMUS_main {
 
 		elsif((is_admixed(@ref_pops) || $remove_AIMs) && @unrelated_samples < $MIN_SAMPLES_WITHOUT_REF && !$keep_AIMs)
 		{
-			print "\nREMOVING AIMS and < $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
-			print $LOG "\nREMOVING AIMS and < $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
+			$LOG->info("\nREMOVING AIMS and < $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n");
 			my ($merged_stem,$ref_stem,$flipped_SNP_arr_ref,$remove_SNP_arr_ref) = multiple_ref_pop_merge($unrelated_stem,"",@ref_pops);
 			my $PCA_plot = make_PCA_plot($merged_stem,$ref_stem,$study_name) if !$no_PCA_plot;
 			my($AIMs_file,@AIMs) = get_AIMs($merged_stem);
@@ -322,8 +318,7 @@ sub run_prePRIMUS_main {
 
 		elsif((!is_admixed(@ref_pops) || $keep_AIMs) && @unrelated_samples >= $MIN_SAMPLES_WITHOUT_REF)
 		{
-			print "\nNOT REMOVING AIMS and >= $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
-			print $LOG "\nNOT REMOVING AIMS and >= $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
+			$LOG->info("\nNOT REMOVING AIMS and >= $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n");
 			my $PCA_plot = make_PCA_plot($unrelated_stem,"",$study_name) if !$no_PCA_plot;
 			$allele_freqs = get_allele_freqs($unrelated_stem);
 			$cleaned_all_samples_stem = remove_SNPs($no_dup_stem,$remove_SNP_arr_ref,"$data_stem\_cleaned");
@@ -331,8 +326,7 @@ sub run_prePRIMUS_main {
 
 		elsif((!is_admixed(@ref_pops) || $keep_AIMs) && @unrelated_samples < $MIN_SAMPLES_WITHOUT_REF)
 		{
-			print "\nNOT REMOVING AIMS and < $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
-			print $LOG "\nNOT REMOVING AIMS and < $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n" if $verbose > 0;
+			$LOG->info("\nNOT REMOVING AIMS and < $MIN_SAMPLES_WITHOUT_REF UNRELATED SAMPLES\n");
 			my ($merged_stem,$ref_stem,$flipped_SNP_arr_ref,$remove_SNP_arr_ref) = multiple_ref_pop_merge($unrelated_stem,"",@ref_pops);
 			my $PCA_plot = make_PCA_plot($merged_stem,$ref_stem,$study_name) if !$no_PCA_plot;
 			$allele_freqs = get_allele_freqs($merged_stem);
@@ -360,11 +354,8 @@ sub run_prePRIMUS_main {
 	}
 
 	remove_intermediate_files(11,$output_dir) if !$keep_intermediate_files;
-	print "IBD estimates are in $genome_file\n" if $verbose > 0;
-	print $LOG "IBD estimates are in $genome_file\n" if $verbose > 0;
-	print "IBD0 vs IBD1 plot: $IBD0_vs_IBD1_plot\n" if $verbose > 0;
-	print $LOG "IBD0 vs IBD1 plot: $IBD0_vs_IBD1_plot\n" if $verbose > 0;
-	#print "\n\nPREPRIMUS 1KG POPCLASSIFIER VERSION DONE!\n\n";
+	$LOG->info("IBD estimates are in $genome_file\n");
+	$LOG->info("IBD0 vs IBD1 plot: $IBD0_vs_IBD1_plot\n");
 	return ($genome_file,$sex_file,$mt_file,$y_file);
 }
 
@@ -379,8 +370,7 @@ sub get_MT_estimates
 	$new_stem = "$data_stem\_MT_estimates" if $new_stem eq "";
 	
 	make_binary_version($data_stem);
-	print "\nCalculating MT estimates from $data_stem => $new_stem.txt\n" if $verbose > 0;
-	print $LOG "\nCalculating MT estimates from $data_stem => $new_stem.txt\n" if $verbose > 0;
+	$LOG->info("\nCalculating MT estimates from $data_stem => $new_stem.txt\n");
 	
 	my $temp = system("$PLINK --noweb --bfile $data_stem --recode --mind 0.1 --geno 0.1 --chr 26 $plink_silent --out $data_stem\_chr26 $memory_flag");
 	$intermediate_files{"$data_stem\_chr26"} = 5;
@@ -423,8 +413,7 @@ sub get_Y_estimates
 	my %MT_estimates;
 	
 	make_binary_version($data_stem);
-	print "\nCalculating Y estimates from $data_stem => $new_stem.txt\n" if $verbose > 0;
-	print $LOG "\nCalculating Y estimates from $data_stem => $new_stem.txt\n" if $verbose > 0;
+	$LOG->info("\nCalculating Y estimates from $data_stem => $new_stem.txt\n");
 	
 	## NEED TO REMOVE SNPs UP TO 2.65M BP, BECAUSE THAT IS THE PSEUDOAUTOSOMAL REGION
 	#my $temp = system("$PLINK --noweb --bfile $data_stem --recode --mind 0.05 --geno 0.05 --chr 24 --from-bp 2650000 --to-bp 60000000 $plink_silent --out $data_stem\_chr24");
@@ -489,7 +478,6 @@ sub do_MT_sequences_match
 			$num_matches++ if $snp1 eq $snp2;
 		}
 	}
-	#print "num_diff: $num_differences\n";
 
 	my $percent_diff = $num_differences/($num_SNPs-$num_unknown); 
 
@@ -531,7 +519,6 @@ sub do_Y_sequences_match
 			$num_matches++ if $snp1 eq $snp2;
 		}
 	}
-	#print "num_diff: $num_differences\n";
 
 	my $percent_diff = $num_differences/($num_SNPs-$num_unknown); 
 
@@ -556,8 +543,7 @@ sub remove_homozygous_SNPs
 	my $new_stem = shift;
 	$new_stem = "$data_stem\_non_homozygous" if $new_stem eq "";
 	
-	print "\nRemoving homozugous SNPs from $data_stem => $new_stem\n" if $verbose > 0;
-	print $LOG "\nRemoving homozugous SNPs from $data_stem => $new_stem\n" if $verbose > 0;
+	$LOG->info("\nRemoving homozugous SNPs from $data_stem => $new_stem\n");
 
 	my $temp = system("$PLINK --noweb --bfile $new_stem --maf 0.001 --make-bed --indiv-sort 0 $plink_silent --out $new_stem $memory_flag");
 	$intermediate_files{"$new_stem.bed"} = 5;
@@ -573,8 +559,7 @@ sub make_IBD0_vs_IBD1_plot
 	my $genome_file = shift;
 	my $study_name = shift;
 
-	print "\nMaking IBD0 vs IBD1 plot for $genome_file\n" if $verbose > 1;
-	print $LOG "\nMaking IBD0 vs IBD1 plot for $genome_file\n" if $verbose > 1;
+	$LOG->debug("\nMaking IBD0 vs IBD1 plot for $genome_file\n");
 
 	## make R script
 	open(R,">$genome_file\_IBD0_vs_IBD1.R");
@@ -624,8 +609,7 @@ sub is_admixed
     my @ref_pops = @_;
     my $is_admixed = 0;
 
-    print "Checking if @ref_pops are admixed\n" if $verbose > 1;
-    print $LOG "Checking if @ref_pops are admixed\n" if $verbose > 1;
+    $LOG->debug("Checking if @ref_pops are admixed\n");
     
     # Known admixed populations
     # ASW - African Ancestry in Southwest US (African + European admixture)
@@ -1315,22 +1299,9 @@ sub get_unrelateds
     
 
 	## Set rough IBD estimates
-    #my $rough_IBDs_genome = calculate_IBD_estimates($stem_name,"$stem_name\_naive");
-    #$intermediate_files{"$rough_IBDs_genome"} = 3;
 
-    #my %ibd_estimates;
-    #$ibd_estimates{'FILE'}= $rough_IBDs_genome;
-    #$ibd_estimates{'FID1'}= 1;
-    #$ibd_estimates{'IID1'}= 2;
-    #$ibd_estimates{'FID2'}= 3;
-    #$ibd_estimates{'IID2'}= 4;
-    #$ibd_estimates{'PI_HAT'}= 10;
 	
 	## RUN IMUS to get number of unrelated samples
-    #print "\nRun IMUS on IBDs for all original samples\n" if $verbose > 1;
-    #print $LOG "\nRun IMUS on IBDs for all original samples\n" if $verbose > 1;
-    #my @IMUS_commands = ("--do_IMUS",1,"--do_PR",0,"--ibd_estimates",\%ibd_estimates,"--verbose",$verbose,"--output_dir","$stem_name\_IMUS","--lib",$lib_dir, "--rel_threshold",$THRESHOLD,"--log_file_handle",$LOG);
-    #my ($unrelated_file, @unrelated_samples) = PRIMUS::IMUS::run_IMUS(@IMUS_commands);
 
 	my $unrelated_file = "$stem_name.rel.id";
     my @unrelated_samples = `cat $unrelated_file`;

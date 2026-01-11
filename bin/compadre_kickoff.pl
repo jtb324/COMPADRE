@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#!/usr/bin/env perl
 
 # Script to run PRIMUS
 
@@ -522,53 +522,76 @@ sub process_file
     }
 }
 
+# process the output log messages (not the JSON response) from the python 
+# socket and determine the appropriate way to handle it
+sub process_socket_log {
+  my ($socket_log) = @_;
+
+  if ($socket_log =~ /^(\w+):\s+(.*)$/) {
+    my $severity = lc($1);
+    my $message = $2;
+    if ($severity eq "warn") {
+      $LOG->warn($message);
+    }
+    elsif ($severity eq "info") {
+      $LOG->info($message);
+    }
+    elsif ($severity eq "debug") {
+      $LOG->debug($message);
+    }
+    elsif ($severity eq "fatal") {
+      $LOG->fatal($message);
+    }
+    elsif ($severity eq "proginfo") {
+      $LOG->proginfo($message);
+    }
+    else {
+      $LOG->warn("Unknown log level: $severity. Log message: $message\n");
+    }
+  }
+  else {
+    $LOG->warn("Failed to parse the log from the python server:\n $socket_log\n");
+  }
+
+}
+
 sub print_files_and_settings {
 
-	$LOG->info("\nFILES AND COLUMNS\n");
+	$LOG->proginfo("\nFILES AND COLUMNS\n");
 	
-	$LOG->info("LOG FILE: $log_file\n");
+	$LOG->proginfo("LOG FILE: $log_file\n");
 
-	$LOG->info("Data stem: $data_stem\n" if $data_stem ne "");
+	$LOG->proginfo("Data stem: $data_stem\n") if $data_stem ne "";
 
-	$LOG->info("IBD file: $ibd_estimates{'FILE'} (FID1=".($ibd_estimates{'FID1'})."; IID1=".($ibd_estimates{'IID1'})."; FID2=".($ibd_estimates{'FID2'})."; IID2=".($ibd_estimates{'IID2'})."; IBD0=".($ibd_estimates{'IBD0'})."; IBD1=".($ibd_estimates{'IBD1'})."; IBD2=".($ibd_estimates{'IBD2'})."; PI_HAT/RELATEDNESS=".($ibd_estimates{'PI_HAT'}).")\n" if exists $ibd_estimates{'FILE'});
+	$LOG->proginfo("IBD file: $ibd_estimates{'FILE'} (FID1=".($ibd_estimates{'FID1'})."; IID1=".($ibd_estimates{'IID1'})."; FID2=".($ibd_estimates{'FID2'})."; IID2=".($ibd_estimates{'IID2'})."; IBD0=".($ibd_estimates{'IBD0'})."; IBD1=".($ibd_estimates{'IBD1'})."; IBD2=".($ibd_estimates{'IBD2'})."; PI_HAT/RELATEDNESS=".($ibd_estimates{'PI_HAT'}).")\n") if exists $ibd_estimates{'FILE'};
 	
-	$LOG->info("Dataset results dir: $output_dir\n");
+	$LOG->proginfo("Dataset results dir: $output_dir\n");
 
 	if(!exists $ages{'FILE'}) {
-    $LOG->info("Age file: none\n");
+    $LOG->proginfo("Age file: none\n");
   }
 	elsif(!-e $ages{'FILE'}){
-    $LOG->info("Age file: $ages{'FILE'} does not exists\n"); 
+    $LOG->proginfo("Age file: $ages{'FILE'} does not exists\n"); 
     $pod2usage->(2);
   }
 	else {
-    $LOG->info("Age file: $ages{'FILE'} (FID=".($ages{'FID'})."; IID=".($ages{'IID'})."; AGE=".($ages{'AGE'}).")\n");
+    $LOG->proginfo("Age file: $ages{'FILE'} (FID=".($ages{'FID'})."; IID=".($ages{'IID'})."; AGE=".($ages{'AGE'}).")\n");
   }
 
 	if(!exists $sexes{'FILE'}){
-    $LOG->info("Sex file: none\n");
+    $LOG->proginfo("Sex file: none\n");
   }
 	elsif(!$run_prePRIMUS && !-e $sexes{'FILE'}){
-    $LOG->info("Sex file: $sexes{'FILE'} does not exists\n"); 
+    $LOG->proginfo("Sex file: $sexes{'FILE'} does not exists\n"); 
     $pod2usage->(2);
   }
 	else{
-    $LOG->info("Sex file: $sexes{'FILE'} (FID=$sexes{'FID'}; IID=$sexes{'IID'}; SEX=$sexes{'SEX'}; MALE=$sexes{'MALE'}, FEMALE=$sexes{'FEMALE'})\n");
-  }
-	if(!exists $sexes{'FILE'}){
-    $LOG->info("Sex file: none\n");
-  }
-	elsif(!$run_prePRIMUS && !-e $sexes{'FILE'}){
-    $LOG->info("Sex file: $sexes{'FILE'} does not exists\n"); 
-    $pod2usage->(2);
-  }
-	else{
-    $LOG->info("Sex file: $sexes{'FILE'} (FID=$sexes{'FID'}; IID=$sexes{'IID'}; SEX=$sexes{'SEX'}; MALE=$sexes{'MALE'}, FEMALE=$sexes{'FEMALE'})\n");
+    $LOG->proginfo("Sex file: $sexes{'FILE'} (FID=$sexes{'FID'}; IID=$sexes{'IID'}; SEX=$sexes{'SEX'}; MALE=$sexes{'MALE'}, FEMALE=$sexes{'FEMALE'})\n");
   }
 
-	$LOG->info("Segment data file: $ersa_data\n" if $ersa_data ne "");
+	$LOG->proginfo("Segment data file: $ersa_data\n") if $ersa_data ne "";
 
-	$LOG->info("Port number: $port_number\n" if $port_number ne "" && $port_number != 6000);
+	$LOG->proginfo("Port number: $port_number\n") if $port_number ne "" && $port_number != 6000;
 
 	# get absolute path of compadre helper 
 	my $libpath = $lib_dir;
@@ -582,7 +605,7 @@ sub print_files_and_settings {
   unless (-e $helper_path) {
     $LOG->fatal("The file: $helper_path, for the ersa socket was not found. This behavior is not expected and the file may have been deleted accidentally. Please redownload the file from GitHub. Exiting now...");
 
-    die;
+    die
 
   }
   
@@ -592,10 +615,10 @@ sub print_files_and_settings {
 	# Check if ersa data is passed in at runtime. If it is, send that path, and if not, send 'NA'
 	my $ersa_arg = ($ersa_data ne "") ? $ersa_data : "NA";
 	if ($ersa_data ne "") {
-		$LOG->info("\nLaunching COMPADRE helper (with segment data) ...\n");
+		$LOG->proginfo("\nLaunching COMPADRE helper (with segment data) ...\n");
 	}
 	else {
-		$LOG->info("\nLaunching COMPADRE helper (no segment data) ...\n");
+		$LOG->proginfo("\nLaunching COMPADRE helper (no segment data) ...\n");
 	}
 
 	my $ersa_flags = "";
@@ -611,7 +634,7 @@ sub print_files_and_settings {
 	my $pid = open3($writer, $reader, $reader, 'python3', $helper_path, $ersa_arg, $port_number, $ersa_flags, $output_dir);
 
 	if (!defined $pid) {
-    $LOG->info("Failed to launch COMPADRE helper: $!\n\n");
+    $LOG->fatal("Failed to launch COMPADRE helper: $!\n\n");
 		die;
 	}
 	$compadre_pid = $pid;
@@ -626,7 +649,7 @@ sub print_files_and_settings {
         $actual_port = $1;
   $port_number = $actual_port;
 
-        $LOG->info("\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n");
+        $LOG->proginfo("\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n");
     }
 
     # Always parse the actual port from the "ready" line on stdout. The 
@@ -635,8 +658,7 @@ sub print_files_and_settings {
 		elsif ($line =~ /COMPADRE helper is ready on port\s+(\d+)/) {
 			$actual_port = $1;  # <-- CRITICAL: take the authoritative port from stdout
 			chomp $line;
-			print "\n$line\n";
-      print $LOG "\n$line\n";
+      $LOG->proginfo("\n$line\n");
 
 			# Overwrite the working port so all later steps use it
 			$port_number = $actual_port;
@@ -666,8 +688,8 @@ sub print_files_and_settings {
         close($writer);
 
         while (my $line = <$reader>) {
-          print $line;
-          print $LOG $line if defined $LOG;
+          # The response from the python server could be a WARN, INFO, or DEBUG. This block will contain logic to determine what the correct output is
+          process_socket_log($line);
         }
         # If the pipe is closed by Python then we need to kill the program
         exit(0);
@@ -678,9 +700,9 @@ sub print_files_and_settings {
         $listener_pid = $forked_pid;
         # This parent thread no longer needs to read from the socket and leaving it open could cause log messages to go missing.
         close($reader);
+        # weird perl keyword that ends the while loop
         last;
       }
-      # weird perl keyword that ends the while loop
 		}
 
     elsif ($line =~ /ERROR|FAILED|Exception/) {
@@ -688,14 +710,14 @@ sub print_files_and_settings {
           die;
 
     }
-    elsif ($line =~ /INFO:/) {
-      $LOG->info($line);
+    else {
+      process_socket_log($line);
     }
   }
 	
 	# our $compadre_pid = $pid;
 
-	$LOG->info("\nReference file specification: $reference_pop\n\n" if $reference_pop ne "");
+	$LOG->proginfo("\nReference file specification: $reference_pop\n\n") if $reference_pop ne "";
 
 	# Standard arguments 
 
@@ -711,27 +733,17 @@ sub print_files_and_settings {
 	#############################################################################
 
 	if(!exists $affections{'FILE'}){
-    $LOG->info( "Affection file: none\n");
+    $LOG->proginfo( "Affection file: none\n");
   }
 	elsif(!-e $affections{'FILE'}){
     $LOG->fatal("Affection file: $affections{'FILE'} does not exists\n");
     $pod2usage->(2);
   }
 	else{
-    $LOG->info("Affection file: $affections{'FILE'} (FID=$affections{'FID'}; IID=$affections{'IID'}; AFFECTION=$affections{'AFFECTION'}; AFFECTION_VALUE=$affections{'AFFECTION_VALUE'})\n");
+    $LOG->proginfo("Affection file: $affections{'FILE'} (FID=$affections{'FID'}; IID=$affections{'IID'}; AFFECTION=$affections{'AFFECTION'}; AFFECTION_VALUE=$affections{'AFFECTION_VALUE'})\n");
     }
-	if(!exists $affections{'FILE'}){
-    $LOG->info("Affection file: none\n");
-  }
-	elsif(!-e $affections{'FILE'}){
-    $LOG->fatal("Affection file: $affections{'FILE'} does not exists\n");  
-    $pod2usage->(2);
-  }
-	else{
-    $LOG->info("Affection file: $affections{'FILE'} (FID=$affections{'FID'}; IID=$affections{'IID'}; AFFECTION=$affections{'AFFECTION'}; AFFECTION_VALUE=$affections{'AFFECTION_VALUE'})\n");
-  }
 
-	$LOG->info("Trait weighting:\n");
+	$LOG->proginfo("Trait weighting:\n");
 	foreach my $trait_file (@trait_order)
 	{
 		if($get_max_unrelated_set)
@@ -796,7 +808,7 @@ sub get_sample_info
 	return (\%hash);
 }
 
-
+# everything in this function needs to use print not $LOG because the logger is not yet set up at this point in the code
 sub apply_options {
     my $help = 0;		
     my $ident = 0;		
