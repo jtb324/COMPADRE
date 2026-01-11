@@ -179,7 +179,7 @@ sub reconstruct_pedigree {
 
 	eval
 	{
-		$LOG->debug("min_likelihood: $MIN_LIKELIHOOD\n");
+		$LOG->info("min_likelihood: $MIN_LIKELIHOOD\n");
 
 		## fallback
 		
