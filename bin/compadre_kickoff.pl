@@ -235,7 +235,7 @@ my $loglevel = get_logger_level($verbose);
 # the console
 configure_logger($log_file, $loglevel);
 
-my $LOG = Log::Log4perl->get_logger();
+$LOG = Log::Log4perl->get_logger();
 
 $LOG->proginfo("Commandline options used: @commandline_options\n");
 
@@ -251,7 +251,7 @@ if($max_generations eq 'none'){$max_generations = 1000}
 if($generate_likelihood_vectors_only)
 {
   generate_likelihood_vectors_only();
-  print "done.\n";
+  $LOG->proginfo("done.");
   exit
 }
 
@@ -262,7 +262,7 @@ if($run_prePRIMUS){
 ## Run IMUS to get family networks and maximum unrelated set (unless turned off)
 if($reconstruct_pedigrees || $get_max_unrelated_set)
 {
-	my @IMUS_commands = ("--do_IMUS",$get_max_unrelated_set,"--do_PR",$reconstruct_pedigrees,"--ibd_estimates",\%ibd_estimates,"--verbose",$verbose,"--trait_order",\@trait_order,"--traits",\%traits,"--output_dir",$output_dir,"--rel_threshold",$relatedness_threshold,"--lib",$lib_dir,"--int_likelihood_cutoff",$initial_likelihood_cutoff,"--log_file_handle",$LOG);
+	my @IMUS_commands = ("--do_IMUS",$get_max_unrelated_set,"--do_PR",$reconstruct_pedigrees,"--ibd_estimates",\%ibd_estimates,"--verbose",$verbose,"--trait_order",\@trait_order,"--traits",\%traits,"--output_dir",$output_dir,"--rel_threshold",$relatedness_threshold,"--lib",$lib_dir,"--int_likelihood_cutoff",$initial_likelihood_cutoff);
 	$LOG->debug("IMUS_commands: @IMUS_commands\n");
 	if(!PRIMUS::IMUS::run_IMUS(@IMUS_commands)){
     die "IMUS FAILED TO COMPLETE\n\n";
@@ -310,7 +310,7 @@ sub run_prePRIMUS
 	my $preprimus_dir = "$output_dir/$study_name\_prePRIMUS";
 	make_path($preprimus_dir, { mode => 0755 }) if !-d $preprimus_dir;
 	
-	my @IBD_commands = ("--verbose",$verbose,"--study_name",$study_name,"--output_dir",$preprimus_dir,"--lib",$lib_dir,"--file",$data_stem,"--rerun",$rerun,"--ref_pops_ref",\@ref_pops,"--remove_AIMs",$remove_AIMs,"--keep_AIMs",$keep_AIMs,"--internal_ref",$internal_ref,"--alt_ref",$alt_ref_stem,"--no_PCA_plot",$no_PCA_plot,"--keep_intermediate_files",$keep_prePRIMUS_intermediate_files,"--no_automatic_IBD",$no_automatic_IBD,"--rel_threshold",$relatedness_threshold,"--log_file_handle",$LOG,"--MT_error_rate",$MT_MAX_PERCENT_DIFFERENCE_FOR_MATCH,"--Y_error_rate",$Y_MAX_PERCENT_DIFFERENCE_FOR_MATCH,"--no_mito",$no_mito,"--no_y",$no_y, "--min_pihat_threshold", $min_pihat_threshold, "--max_memory",$max_memory);
+	my @IBD_commands = ("--verbose",$verbose,"--study_name",$study_name,"--output_dir",$preprimus_dir,"--lib",$lib_dir,"--file",$data_stem,"--rerun",$rerun,"--ref_pops_ref",\@ref_pops,"--remove_AIMs",$remove_AIMs,"--keep_AIMs",$keep_AIMs,"--internal_ref",$internal_ref,"--alt_ref",$alt_ref_stem,"--no_PCA_plot",$no_PCA_plot,"--keep_intermediate_files",$keep_prePRIMUS_intermediate_files,"--no_automatic_IBD",$no_automatic_IBD,"--rel_threshold",$relatedness_threshold,"--MT_error_rate",$MT_MAX_PERCENT_DIFFERENCE_FOR_MATCH,"--Y_error_rate",$Y_MAX_PERCENT_DIFFERENCE_FOR_MATCH,"--no_mito",$no_mito,"--no_y",$no_y, "--min_pihat_threshold", $min_pihat_threshold, "--max_memory",$max_memory);
 
 	## Run the PLINK IBD pipeline
 	my ($temp_genome_file,$temp_sex_file,$temp_mt_match_file,$temp_y_match_file) = PRIMUS::prePRIMUS_pipeline_v7::run_prePRIMUS_main(@IBD_commands);
@@ -459,7 +459,7 @@ sub run_PR {
 		}
 		else
 		{
-			my @PR_commands = ("--network",$network_name,"--ibd_estimates",\%network_ibd_estimates,"--y_hash",\%y_matches,"--mito_hash",\%mito_matches,"--verbose",$verbose,"--output_dir",$network_dir,"--int_likelihood_cutoff",$initial_likelihood_cutoff,"--max_gen",$max_generations,"--sex_ref",$sexes_ref,"--age_ref",$ages_ref,"--affection_ref",$affections_ref,"--network_num",$net,"--affection_status_value",$affections{'AFFECTION_VALUE'}, "--lib",$lib_dir,"--bin",$bin_dir,"--log_file_handle",$LOG,"--no_mito",$no_mito,"--no_y",$no_y,"--use_mito_match",$use_mito_match,"--use_y_match",$use_y_match,"--degree_rel_cutoff",$degree_rel_cutoff);
+			my @PR_commands = ("--network",$network_name,"--ibd_estimates",\%network_ibd_estimates,"--y_hash",\%y_matches,"--mito_hash",\%mito_matches,"--verbose",$verbose,"--output_dir",$network_dir,"--int_likelihood_cutoff",$initial_likelihood_cutoff,"--max_gen",$max_generations,"--sex_ref",$sexes_ref,"--age_ref",$ages_ref,"--affection_ref",$affections_ref,"--network_num",$net,"--affection_status_value",$affections{'AFFECTION_VALUE'}, "--lib",$lib_dir,"--bin",$bin_dir,"--no_mito",$no_mito,"--no_y",$no_y,"--use_mito_match",$use_mito_match,"--use_y_match",$use_y_match,"--degree_rel_cutoff",$degree_rel_cutoff);
 			eval
 			{
 				PRIMUS::reconstruct_pedigree_v7::reconstruct_pedigree(@PR_commands);
@@ -498,7 +498,7 @@ sub run_PR {
 		my $ersa_model_output_path = "$ersa_output_path_prefix.model";
 		my $ersa_output_path = "$ersa_output_path_prefix.out";
 
-		my $padre_command = "perl $project_root/padre/bin/run_PADRE.pl --ersa_model_output $ersa_model_output_path --ersa_results $ersa_output_path --project_summary $output_dir/Summary_$dataset_name.txt --degree_rel_cutoff $degree_rel_cutoff --output_dir $output_dir/padre_results";
+		my $padre_command = "perl $project_root/padre/bin/run_PADRE.pl --ersa_model_output $ersa_model_output_path --ersa_results $ersa_output_path --project_summary $output_dir/Summary_$dataset_name.txt --degree_rel_cutoff $degree_rel_cutoff --output_dir $output_dir/padre_results --verbose $verbose --log_file \"$log_file\"";
 
 		system($padre_command) == 0
 			or warn "Failed to run PADRE: $padre_command\n";
@@ -647,9 +647,9 @@ sub print_files_and_settings {
     # Check for port change notification (comes via stderr which open3 merges)
     if ($line =~ /Port changed: (\d+)/) {
         $actual_port = $1;
-  $port_number = $actual_port;
 
         $LOG->proginfo("\n[COMPADRE] Port $port_number was in use, using port $actual_port instead.\n");
+        $port_number = $actual_port;
     }
 
     # Always parse the actual port from the "ready" line on stdout. The 

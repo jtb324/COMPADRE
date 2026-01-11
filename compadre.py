@@ -93,7 +93,7 @@ def update_min_cm(additional_options, segment_dict):
     # Only auto-detect if still using the default value
     if current_min_cm != 2.5:
         safe_print(
-            f"Current min_cm is {current_min_cm} and will be passed as such",
+            f"INFO: Current min_cm is {current_min_cm} and will be passed as such",
             file=sys.stderr,
         )
         return additional_options
@@ -102,14 +102,15 @@ def update_min_cm(additional_options, segment_dict):
 
     if detected_min_cm is not None and detected_min_cm > 2.5:
         safe_print(
-            f"[COMPADRE] Auto-detected minimum cM: {detected_min_cm}", file=sys.stderr
-        )
-        safe_print(
-            "[COMPADRE] All segments are above default threshold (2.5)",
+            f"INFO: [COMPADRE] Auto-detected minimum cM: {detected_min_cm}",
             file=sys.stderr,
         )
         safe_print(
-            f"[COMPADRE] Updating min_cm for ERSA to: {detected_min_cm}",
+            "INFO: [COMPADRE] All segments are above default threshold (2.5)",
+            file=sys.stderr,
+        )
+        safe_print(
+            f"INFO: [COMPADRE] Updating min_cm for ERSA to: {detected_min_cm}",
             file=sys.stderr,
         )
         additional_options["min_cm"] = detected_min_cm
@@ -211,7 +212,9 @@ def start_server(
         return (
             None,
             None,
-            Exception(f"Unable to find an open port after {max_attempts} attempts"),
+            Exception(
+                f"FATAL: Unable to find an open port after {max_attempts} attempts"
+            ),
         )
 
     new_socket = create_socket()
@@ -224,7 +227,7 @@ def start_server(
         if e.errno == errno.EADDRINUSE:
             new_socket.close()
             safe_print(
-                f"Port {preferred_port} is in use, searching for available port...",
+                f"INFO: Port {preferred_port} is in use, searching for available port...",
                 file=sys.stderr,
             )
             port = random.randint(4001, 8000)  # Try ports in this range
@@ -277,7 +280,7 @@ def load_segment_information(
 
     if segment_data_file != "NA":
         safe_print(
-            f"Reading in the pairwise IBD segment information from: {segment_data_file}",
+            f"INFO: Reading in the pairwise IBD segment information from: {segment_data_file}",
             file=sys.stdout,
         )
 
@@ -355,7 +358,7 @@ def load_segment_information(
 
             else:
                 safe_print(
-                    "[COMPADRE] Unrecognized segment file format. Please refer to the README (https://github.com/belowlab/compadre) for formatting guidelines."
+                    "FATAL: [COMPADRE] Unrecognized segment file format. Please refer to the README (https://github.com/belowlab/compadre) for formatting guidelines."
                 )
     return segment_dict, ibd2_status
     # Figure out the true min_cm to be passed into ERSA based on the contents of segment_dict
@@ -385,7 +388,7 @@ def main(
 
     if error:
         safe_print(
-            f"Encountered the following error while trying to start the compadre.py server: {str(error)}",
+            f"FATAL: Encountered the following error while trying to start the compadre.py server: {str(error)}",
             file=sys.stderr,
         )
         raise error
@@ -429,7 +432,7 @@ def main(
 
         finally:
             server_socket.close()
-            safe_print("[COMPADRE] COMPADRE helper shutdown complete.")
+            safe_print("PROGINFO: [COMPADRE] COMPADRE helper shutdown complete.")
 
 
 def handle_client_connection(
@@ -465,7 +468,7 @@ def handle_client_connection(
                 # Population classifier
                 if len(ms) >= 3 and ms[-1] == "pop_classifier":
                     try:
-                        safe_print("Processing pop_classifier request", file=sys.stdout)
+                        # safe_print("Processing pop_classifier request", file=sys.stdout)
 
                         eigenvec_file = ms[0]
                         pop_file = ms[1]
@@ -496,7 +499,7 @@ def handle_client_connection(
                     ersa_outfile = f"{ersa_dir}/output_all_ersa"
 
                     try:
-                        safe_print("Processing PADRE request", file=sys.stderr)
+                        safe_print("PROGINFO: running ERSA for PADRE", file=sys.stderr)
 
                         # object to pass to ersa is the WHOLE dictionary
                         segment_obj = json.dumps(segment_dict)
@@ -612,7 +615,9 @@ def process_pairwise_ersa(
 
         vector_arr = [float(x) for x in vector_str.split(",")]
         if len(vector_arr) != 6:
-            raise ValueError(f"Expected 6 values in vector, got {len(vector_arr)}")
+            raise ValueError(
+                f"WARN: Expected 6 values in vector, got {len(vector_arr)}"
+            )
 
         # Step 2: Check for segments
         if idcombo not in segment_dict.keys():
@@ -626,7 +631,9 @@ def process_pairwise_ersa(
             segment_obj = json.dumps(segment_obj)
 
         except Exception as e:
-            raise Exception(f"Failed to prepare segment data for {idcombo}: {str(e)}")
+            raise Exception(
+                f"WARN: Failed to prepare segment data for {idcombo}: {str(e)}"
+            )
 
         # Step 4: Set up ERSA options
         try:
@@ -650,7 +657,7 @@ def process_pairwise_ersa(
             ersa_options.update(additional_options)
 
         except Exception as e:
-            raise Exception(f"Failed to set up ERSA options: {str(e)}")
+            raise Exception(f"FATAL: Failed to set up ERSA options: {str(e)}")
 
         # Step 5: Run ERSA
         try:
@@ -664,7 +671,7 @@ def process_pairwise_ersa(
         except Exception as ersa_error:
             # Log the ERSA error but don't crash - return original vector
             safe_print(
-                f"ERSA failed for {idcombo} with segments: {segment_dict[idcombo]}, reverting to original vector: {str(ersa_error)}",
+                f"WARN: ERSA failed for {idcombo} with segments: {segment_dict[idcombo]}, reverting to original vector: {str(ersa_error)}",
                 file=sys.stderr,
             )
             return vector_str
@@ -673,13 +680,14 @@ def process_pairwise_ersa(
         try:
             if output_model_df.empty:
                 safe_print(
-                    f"ERSA returned empty dataframe for {idcombo}", file=sys.stderr
+                    f"WARN: ERSA returned empty dataframe for {idcombo}",
+                    file=sys.stderr,
                 )
                 return "0,0,0,0,0,1"
 
             if output_model_df["maxlnl"].isna().all():
                 safe_print(
-                    f"ERSA returned all NaN maxlnl values for {idcombo}",
+                    f"WARN: ERSA returned all NaN maxlnl values for {idcombo}",
                     file=sys.stderr,
                 )
                 return "0,0,0,0,0,1"
@@ -693,11 +701,11 @@ def process_pairwise_ersa(
             return updated_vector
 
         except Exception as e:
-            raise Exception(f"Failed to process ERSA results: {str(e)}")
+            raise Exception(f"FATAL: Failed to process ERSA results: {str(e)}")
 
     except Exception as e:
         # Re-raise with more context
-        raise Exception(f"ERSA processing failed for {id1} <-> {id2}: {str(e)}")
+        raise Exception(f"WARN: ERSA processing failed for {id1} <-> {id2}: {str(e)}")
 
 
 if __name__ == "__main__":

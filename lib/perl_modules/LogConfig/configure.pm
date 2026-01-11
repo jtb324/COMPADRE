@@ -22,17 +22,22 @@ sub get_logger_level {
   elsif ($verbosity == 2) {
     $loglevel = "DEBUG";
   }
+  elsif ($verbosity < 2) {
+    $loglevel = "TRACE";
+  }
+  else {
+    die "Unknown loglevel $verbosity";
+  }
   return($loglevel);
 }
 
 sub configure_logger {
   my ($logger_filepath, $verbosity) = @_;
 
-  # defining a level that will always be shown because it sits above fatal
   Log::Log4perl::Logger::create_custom_level(
       "PROGINFO",       
-      "program_info",  
-      60000          
+      "FATAL",
+      10000
   );
 
   # set the configuration for the logger
@@ -40,6 +45,7 @@ sub configure_logger {
       log4perl.rootLogger              = $verbosity, Screen, File
       
       log4perl.appender.Screen         = Log::Log4perl::Appender::Screen
+      log4perl.appender.Screen.stderr  = 0
       log4perl.appender.Screen.layout  = Log::Log4perl::Layout::PatternLayout
       log4perl.appender.Screen.layout.ConversionPattern = %m%n
       
@@ -53,6 +59,22 @@ sub configure_logger {
   # Initialize Log4perl
   # We use 'init_once' so it doesn't crash if you accidentally load it twice
   Log::Log4perl->init_once(\$conf);
+
+  # Redirect standard warn and die signals to the logger
+  $SIG{__WARN__} = sub {
+      local $Log::Log4perl::caller_depth = $Log::Log4perl::caller_depth + 1;
+      Log::Log4perl::get_logger()->warn(@_);
+  };
+  
+  $SIG{__DIE__} = sub {
+      if($^S) {
+          # We're in an eval {} and don't want log this message but catch it later
+          return;
+      }
+      local $Log::Log4perl::caller_depth = $Log::Log4perl::caller_depth + 1;
+      Log::Log4perl::get_logger()->fatal(@_);
+      die @_; # Now die really
+  };
 }
 
 1;

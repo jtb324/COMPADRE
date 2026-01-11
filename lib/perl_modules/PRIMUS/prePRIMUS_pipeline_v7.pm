@@ -33,7 +33,6 @@ my $R = "R";
 #my $HM3_STEM = "$lib_dir/hapmap3/allhapmapUNREL_r2_b36_fwd.qc.poly";
 my $lib_dir = "../lib";
 my $onekg = "$pmloc/lib/1KG";
-#print "\n\n1KG directory: $onekg\n\n";
 
 #$HM3_STEM = "$lib_dir/hapmap3/allhapmapUNREL_r2_b36_fwd.qc.poly";
 #my $onekg_STEM = "$onekg/all_unrelateds_NEW";
@@ -543,7 +542,7 @@ sub remove_homozygous_SNPs
 	my $new_stem = shift;
 	$new_stem = "$data_stem\_non_homozygous" if $new_stem eq "";
 	
-	$LOG->info("\nRemoving homozugous SNPs from $data_stem => $new_stem\n");
+	$LOG->info("\nRemoving homozygous SNPs from $data_stem => $new_stem\n");
 
 	my $temp = system("$PLINK --noweb --bfile $new_stem --maf 0.001 --make-bed --indiv-sort 0 $plink_silent --out $new_stem $memory_flag");
 	$intermediate_files{"$new_stem.bed"} = 5;
@@ -668,11 +667,9 @@ sub pick_reference_populations {
 	my $study_name = shift;
 	my $rerun_pca= shift;
 
-	print "\nSelecting reference population(s) for $data_stem\n" if $verbose > 0;
-	print $LOG "\nSelecting reference population(s) for $data_stem\n" if $verbose > 0;
+	$LOG->info("\nSelecting reference population(s) for $data_stem\n");
 	$study_name = get_file_name_from_stem($data_stem) if $study_name eq "";
 
-	#if (!-e "$data_stem.eigenvec" || $rerun_pca == 1) { print "\nNeed to run PCA\n"; }
 	run_pca($data_stem, 1) if (!-e "$data_stem.eigenvec" || $rerun_pca == 1);
 	
 	my %samples; 
@@ -693,15 +690,14 @@ sub pick_reference_populations {
 
 	if($ref_pops_str eq 'No response')
 	{
-    print $LOG "Error, while running PCA. The python server through the following error: ";
+    $LOG->fatal("Error, while running PCA. The python server threw the following error: \n\nError. Run population classifier script in isolation with PLINK's PCA *.eigenvec file for more information.  You can also manually select reference sub-populations (ex., CEU) and rerun COMPADRE with the --ref_pops [POP] option\n");
     # TODO: I think this error message is out of date because now we are using a python script to do PCA
-		die "Error. Run population classifier script in isolation with PLINK's PCA *.eigenvec file for more information.  You can also manually select reference sub-populations (ex., CEU) and rerun COMPADRE with the --ref_pops [POP] option\n";
+		die;
 	}
 
 	@ref_pops = split(/\|/, $ref_pops_str);
 
-	print "Ref pops: @ref_pops\n" if $verbose > 0;
-	print $LOG "Ref pops: @ref_pops\n" if $verbose > 0;
+	$LOG->info("Ref pops: @ref_pops\n");
 
 
 	return @ref_pops;
@@ -715,8 +711,7 @@ sub multiple_ref_pop_merge
 	
 	$new_stem = "$data_stem\_multi_merged" if $new_stem eq "";
 	
-	print "\nMerging $data_stem with @ref_pops => $new_stem\n" if $verbose > 0;
-	print $LOG "\nMerging $data_stem with @ref_pops => $new_stem\n" if $verbose > 0;
+	$LOG->info("\nMerging $data_stem with @ref_pops => $new_stem\n");
 	
 	my $ref_samples_to_keep_stem = "$new_stem\_1KG_reference_samples";
     #my $files = "";
@@ -745,8 +740,7 @@ sub merge {
 	my $new_stem = shift;
 	$new_stem = "$data_stem\_merged" if $new_stem eq "";
 	
-	print "\nMerging $data_stem and $ref_stem => $new_stem\n" if $verbose > 0;
-	print $LOG "\nMerging $data_stem and $ref_stem => $new_stem\n" if $verbose > 0;
+	$LOG->info("\nMerging $data_stem and $ref_stem => $new_stem\n");
 	
 	make_binary_version($data_stem);
 	make_binary_version($ref_stem);
@@ -783,8 +777,7 @@ sub flip
 	$new_stem = "$data_stem\_flipped" if $new_stem eq "";
 	$ref_stem = "$onekg_STEM" if $ref_stem eq "";
 	
-	print "\nFlipping $data_stem to match $ref_stem => $new_stem\n" if $verbose > 0;
-	print $LOG "\nFlipping $data_stem to match $ref_stem => $new_stem\n" if $verbose > 0;
+	$LOG->info("\nFlipping $data_stem to match $ref_stem => $new_stem\n");
 	
 	make_binary_version($data_stem);
 	make_binary_version($ref_stem);
@@ -868,16 +861,13 @@ sub flip
 		}
 
 
-		#print "$snp: a1(@a1) a2(@a2) alleles(@alleles)\n";
 		if(@a1 > 2 || @a2 > 2)
 		{
-			#print "tri1\n";
 			push(@triallelic,$snp);
 			next;
 		}
 		if(is_ambiguous(@a1) || is_ambiguous(@a2))
 		{
-			#print "amb1\n";
 			push(@ambigious,$snp);
 			next;
 		}
@@ -888,20 +878,16 @@ sub flip
 		}
 		elsif(@alleles == 4)
 		{
-			#print "flip1\n";
 			push(@SNPs_to_be_flipped,$snp);
 		}
 		elsif(@alleles == 3)
 		{
 			if(@a1 == 2 && @a2 == 2)
 			{
-				#print "tri2\n";
 				push(@triallelic,$snp);
 			}
 			else
 			{
-				#print "flip2\n";
-				#if (@a1 == 1 && @a2 == 2) || (@a1 == 2 && @a2 == 1) then we need to flip to match
 				push(@SNPs_to_be_flipped,$snp);
 			}
 	
@@ -910,7 +896,6 @@ sub flip
 		{
 			if(is_ambiguous(@alleles))
 			{
-				#print "amb3\n";
 				push(@ambigious,$snp);
 			}
 			else
@@ -929,14 +914,10 @@ sub flip
 
 	## Combine SNPs and remove
 	my @SNPs_to_remove = (@triallelic,@ambigious,@weird,@non_overlap_SNPs);
-	print "# of SNPs overlap between datasets: " . @overlap_SNPs . "\n" if $verbose > 1;
-	print $LOG "# of SNPs overlap between datasets: " . @overlap_SNPs . "\n" if $verbose > 1;
-	print "# of SNPs non-overlap between datasets: " . @non_overlap_SNPs . "\n" if $verbose > 1;
-	print $LOG "# of SNPs non-overlap between datasets: " . @non_overlap_SNPs . "\n" if $verbose > 1;
-	print "# of SNPs to remove before merging: " . @SNPs_to_remove . "\n" if $verbose > 1;
-	print $LOG "# of SNPs to remove before merging: " . @SNPs_to_remove . "\n" if $verbose > 1;
-	print "# of SNPs to flip before merging: " . @SNPs_to_be_flipped . "\n" if $verbose > 1;
-	print $LOG "# of SNPs to flip before merging: " . @SNPs_to_be_flipped . "\n" if $verbose > 1;
+	$LOG->info("# of SNPs overlap between datasets: " . @overlap_SNPs . "\n");
+	$LOG->info("# of SNPs non-overlap between datasets: " . @non_overlap_SNPs . "\n");
+	$LOG->debug("# of SNPs to remove before merging: " . @SNPs_to_remove . "\n");
+	$LOG->debug("# of SNPs to flip before merging: " . @SNPs_to_be_flipped . "\n");
 	
 	remove_SNPs($data_stem,\@SNPs_to_remove,$new_stem);
 	
@@ -971,8 +952,7 @@ sub flip_SNPs
 sub call_callrate
 {
 	my $stem_name = shift;
-	print "\nCalling callrate for $stem_name\n" if $verbose > 0;
-	print $LOG "\nCalling callrate for $stem_name\n" if $verbose > 0;
+	$LOG->info("\nCalling callrate for $stem_name\n");
 	make_binary_version($stem_name);
 	system("$PLINK --allow-no-sex --noweb --bfile $stem_name --maf $MAF --geno $GENO --missing $plink_silent --out $stem_name $memory_flag");
 	$intermediate_files{"$stem_name.log"} = 1;
@@ -983,8 +963,7 @@ sub call_het
 {
 	my $data_stem = shift;
 	my $ref_freq_file = shift;
-	print "\nCalling het rate for $data_stem\n" if $verbose > 0;
-	print $LOG "\nCalling het rate for $data_stem\n" if $verbose > 0;
+	$LOG->info("\nCalling het rate for $data_stem\n");
 	make_binary_version($data_stem);
 	system("$PLINK --noweb --bfile $data_stem --maf $MAF --geno $GENO --read-freq $ref_freq_file --het $plink_silent --out $data_stem $memory_flag");
 	$intermediate_files{"$data_stem.log"} = 1;
@@ -995,8 +974,7 @@ sub call_sex
 {
 	my $data_stem = shift;
 	my $ref_freq_file = shift;
-	print "\nCalling sex for $data_stem\n" if $verbose > 0;
-	print $LOG "\nCalling sex for $data_stem\n" if $verbose > 0;
+	$LOG->info("\nCalling sex for $data_stem\n");
 	make_binary_version($data_stem);
 	system("$PLINK --noweb --bfile $data_stem --mind $MIND --maf $MAF --geno $GENO --read-freq $ref_freq_file --check-sex $plink_silent --out $data_stem $memory_flag");
 	$intermediate_files{"$data_stem.log"} = 1;
@@ -1006,8 +984,7 @@ sub call_sex
 sub get_allele_freqs
 {
 	my $stem_name = shift;
-	print "\nGetting allele frequencies for $stem_name\n" if $verbose > 0;
-	print $LOG "\nGetting allele frequencies for $stem_name\n" if $verbose > 0;
+	$LOG->info("\nGetting allele frequencies for $stem_name\n");
 	make_binary_version($stem_name);
 	system("$PLINK --noweb --bfile $stem_name --nonfounders --freq $plink_silent --out $stem_name $memory_flag");
 	$intermediate_files{"$stem_name.frq"} = 10;
@@ -1032,8 +1009,7 @@ sub get_AIMs
 
 	$eigenvec_file = "$stem_name.eigenvec" if $eigenvec_file eq "";
 	
-	print "\nGetting AIMs for $stem_name\n" if $verbose > 0;
-	print $LOG "\nGetting AIMs for $stem_name\n" if $verbose > 0;
+	$LOG->info("\nGetting AIMs for $stem_name\n");
 
 	## run_pca (e.g. EIGENSTRAT)
 	if(!-e $eigenvec_file || $rerun_pca == 1)
@@ -1068,8 +1044,7 @@ sub get_AIMs
 	my %AIMs;	
 	for(1..2)
 	{
-		print "\nPulling AIMs from $stem_name\_PCV$_.qassoc\n" if $verbose > 1;
-		print $LOG "\nPulling AIMs from $stem_name\_PCV$_.qassoc\n" if $verbose > 1;
+		$LOG->debug("\nPulling AIMs from $stem_name\_PCV$_.qassoc\n");
 		open(IN,"$stem_name\_PCV$_.qassoc");
 		my $header = <IN>;
 		while(my $line = <IN>)
@@ -1094,8 +1069,7 @@ sub get_AIMs
 	close(OUT);
 	$intermediate_files{"$stem_name\_AIMs.txt"} = 10;
 	
-	print "# of AIMs found: ". (keys %AIMs). "\n" if $verbose > 0;
-	print $LOG "# of AIMs found: ". (keys %AIMs). "\n" if $verbose > 0;
+	$LOG->info("# of AIMs found: ". (keys %AIMs). "\n");
 
 	return ("$stem_name\_AIMs.txt",(keys %AIMs));
 }
@@ -1116,8 +1090,7 @@ sub make_PCA_plot {
     my $project_onto_1KG = shift;
 	my $rerun_pca= shift;
 
-	print "\nMaking PCA plot for $stem_name\n" if $verbose > 0;
-	print $LOG "\nMaking PCA plot for $stem_name\n" if $verbose > 0;
+	$LOG->info("\nMaking PCA plot for $stem_name\n");
 	$study_name = "Sample data" if $study_name eq "";
 	$ref_name = get_file_name_from_stem($ref_stem) if $ref_name eq "" ;
 
@@ -1152,7 +1125,6 @@ sub make_PCA_plot {
         
         if(!exists $onekg_colors{$pop})
         {
-            #print "non ref $pop\n";
             push(@lines,"$fid $iid \"$pop\" \"$color\" @pcv\n"); ## Add the non-reference to back of array to be plotted last 
             push(@pch,13);
         }
@@ -1217,8 +1189,7 @@ sub make_PCA_plot {
 		die "ERROR!!! Failed to draw eigenstrat results.\n";
 	}
 	
-	print "PCA plot: $stem_name\_PCV1vPCV2.pdf\n" if $verbose > 0;
-	print $LOG "PCA plot: $stem_name\_PCV1vPCV2.pdf\n" if $verbose > 0;
+	$LOG->info("PCA plot: $stem_name\_PCV1vPCV2.pdf\n");
 	return ("$stem_name\_PCV1vPCV2.pdf");
 }
 
@@ -1228,8 +1199,7 @@ sub run_pca
 	my $stem_name = shift;
 	my $project_onto_1KG = shift;
 
-	print "\nRunning plink's PCA (new) on $stem_name => $stem_name.eigenvec\n" if $verbose > 0;
-	print $LOG "\nRunning plink's PCA (new) on $stem_name => $stem_name.eigenvec\n" if $verbose > 0;
+	$LOG->info("\nRunning plink's PCA (new) on $stem_name => $stem_name.eigenvec\n");
 
 	make_binary_version($stem_name);
 
@@ -1241,8 +1211,7 @@ sub run_pca
 	#add --exclude/--extract to skip them in the subsequent PCA-approx step
 	
 
-	print "\nRunning LD pruning\n" if $verbose > 0;
-	print $LOG "\nRunning LD pruning\n" if $verbose > 0;
+	$LOG->info("\nRunning LD pruning\n");
 
 	my $temp = system("$PLINK --bfile $stem_name --indep-pairwise 10 10 0.2 --out $stem_name\_pruned $memory_flag");
 	#my $temp = system("plink --bfile $stem_name --indep-pairwise 50 5 0.1 --out $stem_name\_pruned");
@@ -1287,8 +1256,7 @@ sub get_unrelateds
 	$new_stem_name = "$stem_name\_unrelateds" if $new_stem_name eq "";
 	make_binary_version($stem_name);
 
-	print "\nGet Unrelated set for $stem_name => $new_stem_name\n" if $verbose > 0;
-	print $LOG "\nGet Unrelated set for $stem_name => $new_stem_name\n" if $verbose > 0;
+	$LOG->info("\nGet Unrelated set for $stem_name => $new_stem_name\n");
 
     my $temp = system("$PLINK --allow-no-sex --bfile $stem_name --maf $MAF --geno $GENO --thin-count 10000 --rel-cutoff 0.09375 --mind --out $stem_name $memory_flag");
 	if($temp > 0)
@@ -1311,8 +1279,7 @@ sub get_unrelateds
 	$intermediate_files{$unrelated_file} = 3;
 
 	my $num_unrelated_samples = @unrelated_samples; ## Decrement one for the header
-	print "\nNum unrelated samples: $num_unrelated_samples\n" if $verbose > 1;
-	print $LOG "\nNum unrelated samples: $num_unrelated_samples\n" if $verbose > 1;
+	$LOG->debug("\nNum unrelated samples: $num_unrelated_samples\n");
 
 	## Make an unrelated version of the data
 	keep_samples($stem_name,$new_stem_name,$unrelated_file);
@@ -1333,8 +1300,7 @@ sub calculate_IBD_estimates {
 	my $min_pihat_threshold = shift;
 
 	$new_stem_name = "$stem_name" if $new_stem_name eq "";
-	print "\nCalculating IBDs for $stem_name (.frq = $freq_file) => $new_stem_name.genome\n" if $verbose > 0;
-	print $LOG "\nCalculating IBDs for $stem_name (.frq = $freq_file) => $new_stem_name.genome\n" if $verbose > 0;
+	$LOG->info("\nCalculating IBDs for $stem_name (.frq = $freq_file) => $new_stem_name.genome\n");
 	
 	make_binary_version($stem_name);
 	
@@ -1348,8 +1314,7 @@ sub calculate_IBD_estimates {
 
 	# Error checking for edge case where this variable is not passed correctly
 	if (!defined $min_pihat_threshold || $min_pihat_threshold <= 0) {
-		print "\nMinimum pi-hat threshold was not propagated to IBD estimation, setting to 0\n" if $verbose > 2;
-		print $LOG "\nMinimum pi-hat threshold was not propagated to IBD estimation, setting to 0\n" if $verbose > 0;
+		$LOG->debug("\nMinimum pi-hat threshold was not propagated to IBD estimation, setting to 0\n");
 		$min_pihat_threshold = 0;
 	}
 
@@ -1375,8 +1340,7 @@ sub remove_dups
 	$no_dups_name = "$stem_name\_noDups" if $no_dups_name eq "";
 	make_binary_version($stem_name);
 
-	print "\nRemoving Dups from $stem_name => $no_dups_name\n" if ($verbose > 0);
-	print $LOG "\nRemoving Dups from $stem_name => $no_dups_name\n" if ($verbose > 0);
+	$LOG->info("\nRemoving Dups from $stem_name => $no_dups_name\n"); 
 	
 	## Load SNP data
 	my %snp_names;
@@ -1411,8 +1375,7 @@ sub remove_dups
 	$intermediate_files{"$no_dups_name.bim"} = 10;
 	$intermediate_files{"$no_dups_name.fam"} = 10;
 
-	print "# of Dup_SNPs: " . @bad_SNPs. "\n" if $verbose > 1;
-	print $LOG "# of Dup_SNPs: " . @bad_SNPs. "\n" if $verbose > 1;
+	$LOG->debug("# of Dup_SNPs: " . @bad_SNPs. "\n");
 	return ($no_dups_name,@bad_SNPs);
 }
 
@@ -1422,10 +1385,10 @@ sub remove_dups
 
 sub print_intermediate_files
 {
-	print "INTERMEDIATE FILES:\n";
+	$LOG->proginfo("INTERMEDIATE FILES:\n");
 	foreach my $file (keys %intermediate_files)
 	{
-		print "$file $intermediate_files{$file}\n";
+		$LOG->proginfo("$file $intermediate_files{$file}");
 	}
 }
 
@@ -1522,12 +1485,10 @@ sub is_ambiguous
 	my @amb4 = qw(A T);
 	if(do_arrays_match(\@alleles,\@amb1) || do_arrays_match(\@alleles,\@amb2) || do_arrays_match(\@alleles,\@amb3) || do_arrays_match(\@alleles,\@amb4))
 	{
-		#print "yes @alleles\n";
 		return 1;
 	}
 	else
 	{
-		#print "no @alleles\n";
 		return 0;
 	}
 }
@@ -1544,8 +1505,7 @@ sub keep_samples
 		$new_stem_name = "$stem_name\_unrelated";
 	}
 
-	print "\nKeep $samples_to_keep samples from $stem_name => $new_stem_name\n" if $verbose > 1;
-	print $LOG "\nKeep $samples_to_keep samples from $stem_name => $new_stem_name\n" if $verbose > 1;
+	$LOG->debug("\nKeep $samples_to_keep samples from $stem_name => $new_stem_name\n");
 
 	## Make an unrelated version of the data
 	my $temp = system("$PLINK --allow-no-sex --noweb --geno $GENO --keep $samples_to_keep --bfile $stem_name --indiv-sort 0 --make-bed $plink_silent --out $new_stem_name $memory_flag");
@@ -1572,8 +1532,7 @@ sub remove_SNPs
 	{
 		return $new_stem_name;
 	}
-	print "\nRemoving ". @$SNPs_to_remove_array_ref ." SNPs from $stem_name => $new_stem_name\n" if $verbose > 1;
-	print $LOG "\nRemoving ". @$SNPs_to_remove_array_ref ." SNPs from $stem_name => $new_stem_name\n" if $verbose > 1;
+	$LOG->debug("\nRemoving ". @$SNPs_to_remove_array_ref ." SNPs from $stem_name => $new_stem_name\n");
 
 	$intermediate_files{"$new_stem_name.bed"} = 10;
 	$intermediate_files{"$new_stem_name.bim"} = 10;
@@ -1614,13 +1573,12 @@ sub make_non_binary_version
 	
 	## Don't run if new_stem_name already exists and if overwrite is not 1
 	if(!-e "$new_stem_name.ped" || !-e "$new_stem_name.map" || $overwrite == 1){
-		print "\nMake_non_binary_version $stem_name => $new_stem_name\n" if $verbose > 1;
-		print $LOG "\nMake_non_binary_version $stem_name => $new_stem_name\n" if $verbose > 1;
+		$LOG->debug("\nMake_non_binary_version $stem_name => $new_stem_name\n");
 		if(-e "$stem_name.map" && -e "$stem_name.ped"){
 			system("$PLINK --file $stem_name --recode $plink_silent --out $new_stem_name $memory_flag");
 		}
 		elsif(-e "$stem_name.bed" && -e "$stem_name.bim" && -e "$stem_name.fam"){
-			print "here: $PLINK --bfile $stem_name --recode $plink_silent --out $new_stem_name $memory_flag\n";
+			$LOG->proginfo("here: $PLINK --bfile $stem_name --recode $plink_silent --out $new_stem_name $memory_flag\n");
 			system("$PLINK --bfile $stem_name --recode $plink_silent --out $new_stem_name $memory_flag");
 		}
 		else
@@ -1644,8 +1602,7 @@ sub make_binary_version
 	
 	## Don't run if new_stem_name already exists and if overwrite is not 1
 	if(!-e "$new_stem_name.bed" || !-e "$new_stem_name.bim" || !-e "$new_stem_name.fam" || $overwrite == 1){
-		print "\nMake binary version of $stem_name => $new_stem_name\n" if $test == 1;
-		print $LOG "\nMake binary version of $stem_name => $new_stem_name\n" if $test == 1;
+		$LOG->proginfo("\nMake binary version of $stem_name => $new_stem_name\n") if $test == 1;
 		if(-e "$stem_name.bed" && -e "$stem_name.bim" && -e "$stem_name.fam"){
 			system("$PLINK --bfile $stem_name --indiv-sort 0 --make-bed $plink_silent --out $new_stem_name $memory_flag");
 		}
@@ -1676,7 +1633,6 @@ sub do_arrays_match
         my $arr1_ref = shift;
         my $arr2_ref = shift;
 
-	#print "@$arr1_ref @$arr2_ref\n";
         if(@$arr1_ref ne @$arr2_ref)
         {
                 return 0;
