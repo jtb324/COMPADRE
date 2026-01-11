@@ -311,7 +311,7 @@ def load_segment_information(
                     # If we move this block up here then we only have to make the tuple when it is needed
                     if cmlen >= min_cm_options:
                         # lets create a tuple of sorted ids that will make sure they are in the same order
-                        key = tuple(sorted([iid1, iid2]))
+                        key = ":".join(tuple(sorted([iid1, iid2])))
 
                         value = (chrom, start, end, cmlen, ibd)
 
@@ -343,7 +343,7 @@ def load_segment_information(
                             int(ls[5].strip()),
                         )
                     if cmlen >= min_cm_options:
-                        key = tuple(sorted([iid1, iid2]))
+                        key = ":".join(tuple(sorted([iid1, iid2])))
                         value = (
                             chrom,
                             start,
@@ -608,7 +608,7 @@ def process_pairwise_ersa(
         id1_temp = id1.split("_")[-1]  # just in case
         id2_temp = id2.split("_")[-1]
 
-        idcombo = tuple(sorted([id1_temp, id2_temp]))
+        idcombo = ":".join(tuple(sorted([id1_temp, id2_temp])))
 
         vector_arr = [float(x) for x in vector_str.split(",")]
         if len(vector_arr) != 6:
