@@ -30,7 +30,7 @@ jobs:
             { echo "Failed to download compadre_data.zip"; exit 1; }
           unzip -o /tmp/compadre_data.zip -d /tmp/compadre_extract/ || \
             { echo "Failed to extract compadre_data.zip"; exit 1; }
-          cp -r /tmp/compadre_extract/compadre_data/. lib/ || \
+          cp -r /tmp/compadre_extract/compadre_data/* lib/ || \
             { echo "Failed to copy compadre_data to lib/"; exit 1; }
 
       - name: Run test suite
