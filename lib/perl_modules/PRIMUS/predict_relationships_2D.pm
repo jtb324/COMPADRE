@@ -144,6 +144,7 @@ sub get_relationship_likelihood_vectors {
 		my $name1 = "$IID1";
 		my $name2 = "$IID2";
 
+		# We need to make sure our ids are in the right order
 		my ($first, $second) = ($name1 lt $name2) ? ($name1, $name2) : ($name2, $name1);
 
 		my @vector;

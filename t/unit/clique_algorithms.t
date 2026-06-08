@@ -12,7 +12,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 55;
+use Test::More tests => 66;
 use Test::Deep;
 use lib 'lib/perl_modules';
 use lib 't/lib';
@@ -1037,5 +1037,237 @@ sub setup_empty_network {
     # Should return empty hash (no neighbors <= threshold)
     is(scalar(keys %{$neighbors_ref}), 0, "get_inverse_neighbors empty: Returns empty hash when no neighbors below threshold");
 }
+
+# Test collapse_networks function
+############################
+
+# Test 45: Simple network merge - two unrelated individuals with related pair
+{
+    my $config = PRIMUS::IMUS::Config->new(do_PR => 0);  # Don't use predict_relationships
+    
+    my $state = PRIMUS::IMUS::State->new(
+        networks => {
+            'net1' => ['ID01'],
+            'net2' => ['ID02'],
+        },
+        id_network => {
+            'ID01' => 'net1',
+            'ID02' => 'net2',
+        }
+    );
+    
+    my %id_id_scores = (
+        'ID01;ID02' => 0.25,  # > threshold (related)
+    );
+    
+    # Call collapse_networks
+    PRIMUS::IMUS::colapse_networks($config, $state, \%id_id_scores);
+    
+    # Networks should be merged: net1 should contain both IDs, net2 should be deleted
+    is(scalar(keys %{ $state->{networks} }), 1, "collapse_networks simple merge: Results in 1 network after merge");
+    ok(exists $state->{networks}{'net1'} && scalar(@{ $state->{networks}{'net1'} }) == 2, 
+       "collapse_networks simple merge: Merged network has both IDs");
+    ok(!exists $state->{networks}{'net2'}, "collapse_networks simple merge: Old network deleted");
+}
+
+
+# Test 47: Update ID-to-network mapping - verify all IDs updated correctly
+{
+    my $config = PRIMUS::IMUS::Config->new(do_PR => 0);
+    
+    my $state = PRIMUS::IMUS::State->new(
+        networks => {
+            'net1' => ['ID01'],
+            'net2' => ['ID02', 'ID03'],  # 2-person network
+        },
+        id_network => {
+            'ID01' => 'net1',
+            'ID02' => 'net2',
+            'ID03' => 'net2',
+        }
+    );
+    
+    my %id_id_scores = (
+        'ID01;ID02' => 0.25,  # Related, will merge
+    );
+    
+    # Call collapse_networks
+    PRIMUS::IMUS::colapse_networks($config, $state, \%id_id_scores);
+    
+    # All IDs should now point to net1
+    ok($state->{id_network}{'ID01'} eq 'net1' && 
+       $state->{id_network}{'ID02'} eq 'net1' && 
+       $state->{id_network}{'ID03'} eq 'net1',
+       "collapse_networks mapping update: All IDs map to surviving network");
+}
+
+# Test 48: Delete old network reference - verify net2 is deleted
+{
+    my $config = PRIMUS::IMUS::Config->new(do_PR => 0);
+    
+    my $state = PRIMUS::IMUS::State->new(
+        networks => {
+            'net1' => ['ID01'],
+            'net2' => ['ID02'],
+            'net3' => ['ID04'],  # Unrelated, stays separate
+        },
+        id_network => {
+            'ID01' => 'net1',
+            'ID02' => 'net2',
+            'ID04' => 'net3',
+        }
+    );
+    
+    my %id_id_scores = (
+        'ID01;ID02' => 0.25,  # Merge net1 and net2
+    );
+    
+    # Call collapse_networks
+    PRIMUS::IMUS::colapse_networks($config, $state, \%id_id_scores);
+    
+    # Should have net1 (merged) and net3 (unrelated)
+    ok(exists $state->{networks}{'net1'} && !exists $state->{networks}{'net2'}, 
+       "collapse_networks delete old: Old network deleted");
+    is(scalar(keys %{ $state->{networks} }), 2, "collapse_networks delete old: 2 networks remain (net1, net3)");
+}
+
+# Test 49: Transitive network merging - A-B related, B-C related, all merge
+{
+    my $config = PRIMUS::IMUS::Config->new(do_PR => 0);
+    
+    my $state = PRIMUS::IMUS::State->new(
+        networks => {
+            'net1' => ['ID01'],
+            'net2' => ['ID02'],
+            'net3' => ['ID03'],
+        },
+        id_network => {
+            'ID01' => 'net1',
+            'ID02' => 'net2',
+            'ID03' => 'net3',
+        }
+    );
+    
+    my %id_id_scores = (
+        'ID01;ID02' => 0.25,  # Related
+        'ID02;ID03' => 0.28,  # Related
+    );
+    
+    # Call collapse_networks (processes all pairs)
+    PRIMUS::IMUS::colapse_networks($config, $state, \%id_id_scores);
+    
+    # All three should end up in same network
+    is(scalar(keys %{ $state->{networks} }), 1, "collapse_networks transitive: All 3 merge into 1 network");
+    is(scalar(@{ $state->{networks}{'net1'} }), 3, "collapse_networks transitive: Final network has 3 IDs");
+}
+
+# Test 50: Threshold filtering (do_PR=false) - skip unrelated pairs
+{
+    my $config = PRIMUS::IMUS::Config->new(do_PR => 0);
+    
+    my $state = PRIMUS::IMUS::State->new(
+        networks => {
+            'net1' => ['ID01'],
+            'net2' => ['ID02'],
+        },
+        id_network => {
+            'ID01' => 'net1',
+            'ID02' => 'net2',
+        }
+    );
+    
+    my %id_id_scores = (
+        'ID01;ID02' => 0.05,  # <= threshold (unrelated, should skip)
+    );
+    
+    # Call collapse_networks
+    PRIMUS::IMUS::colapse_networks($config, $state, \%id_id_scores);
+    
+    # Networks should stay separate (not merged)
+    is(scalar(keys %{ $state->{networks} }), 2, "collapse_networks threshold: Unrelated pairs not merged");
+    ok(exists $state->{networks}{'net1'} && exists $state->{networks}{'net2'},
+       "collapse_networks threshold: Both networks still exist");
+}
+
+# # Test 51: Threshold filtering (do_PR=true) - skip if predict_relationship returns only UN
+# {
+#     my $config = PRIMUS::IMUS::Config->new(do_PR => 1);
+    
+#     my $state = PRIMUS::IMUS::State->new(
+#         networks => {
+#             'net1' => ['ID01'],
+#             'net2' => ['ID02'],
+#         },
+#         id_network => {
+#             'ID01' => 'net1',
+#             'ID02' => 'net2',
+#         }
+#     );
+    
+#     my %id_id_scores = (
+#         'ID01;ID02' => 0.25,  # > threshold
+#     );
+    
+#     # Mock relationships_ref: simulate predict_relationship returning UN
+#     my $relationships_mock = {
+#         'ID01' => { 'ID02' => [0, 0, 0, 0, 0, 1] }  # UN (unrelated) relationship
+#     };
+    
+#     # We would need to mock get_relationship_likelihood_vectors, but for this test
+#     # we can verify the logic: if predict_relationship(vector) returns only "UN", skip merge
+#     # This test documents the expected behavior
+#     ok(1, "collapse_networks predict threshold: UN results should skip merge (requires mocking to test)");
+# }
+
+# Test 52: Handle unordered pairs in relationships_ref - swap if needed
+{
+    my $config = PRIMUS::IMUS::Config->new(do_PR => 0);
+    
+    my $state = PRIMUS::IMUS::State->new(
+        networks => {
+            'net1' => ['ID02'],  # Note: ID02 comes before ID01 in split order
+            'net2' => ['ID01'],
+        },
+        id_network => {
+            'ID01' => 'net2',
+            'ID02' => 'net1',
+        }
+    );
+    
+    my %id_id_scores = (
+        'ID02;ID01' => 0.25,  # Note: pair key has ID02 first
+    );
+    
+    # Call collapse_networks
+    PRIMUS::IMUS::colapse_networks($config, $state, \%id_id_scores);
+    
+    # Should merge correctly regardless of pair order in key
+    is(scalar(keys %{ $state->{networks} }), 1, "collapse_networks pair order: Merges despite unordered key");
+}
+
+# # Test 53: Error condition - inconsistent id_network mapping causes exit
+# {
+#     my $config = PRIMUS::IMUS::Config->new(do_PR => 0);
+    
+#     my $state = PRIMUS::IMUS::State->new(
+#         networks => {
+#             'net1' => ['ID01'],
+#             'net2' => ['ID02', 'ID03_BAD'],  # ID03_BAD claims to be in net2
+#         },
+#         id_network => {
+#             'ID01' => 'net1',
+#             'ID02' => 'net2',
+#             'ID03_BAD' => 'net_wrong',  # Wrong mapping - inconsistent!
+#         }
+#     );
+    
+#     my %id_id_scores = (
+#         'ID01;ID02' => 0.25,  # Related, will try to merge
+#     );
+    
+#     # This test documents the error condition but cannot actually test the exit
+#     # In real usage, this would log and exit; mocking Log::Log4perl would be complex
+#     ok(1, "collapse_networks error check: Inconsistent id_network maps would cause exit (requires mocking to verify exit)");
+# }
 
 

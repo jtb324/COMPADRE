@@ -817,19 +817,17 @@ sub colapse_networks {
         my $id1_network = $state->{id_network}{$id1};
         my $id2_network = $state->{id_network}{$id2};
 
-        #if unrelated, do nothing
+        #if we are not reconstructing pedigrees and the individual is unrelated, do nothing
         if ( !$config->{do_PR} ) {
             if ( $score <= $config->{threshold} ) {
                 next;
             }
         }
         else {
-            #$id1 =~ s/\*\*/__/;
-            #$id2 =~ s/\*\*/__/;
-            foreach ( keys %$relationships_ref ) {
+            # foreach ( keys %$relationships_ref ) {
 
-                #print "key: $_\n";
-            }
+            #     #print "key: $_\n";
+            # }
             if ( !exists $$relationships_ref{$id1}{$id2} ) {
                 my $temp = $id1;
                 $id1 = $id2;
@@ -840,9 +838,9 @@ sub colapse_networks {
             my @vector = @{ $$relationships_ref{$id1}{$id2} };
             my @possibilities =
               PRIMUS::predict_relationships_2D::predict_relationship(@vector);
-            ## Check that there is at least one.
+            ## Check that there is at least one. Log a warning if there are no possibilities.
             if ( @possibilities < 1 ) {
-
+                $LOG->warn("ERROR: No relationship possibilities returned from predict_relationships_2D for pair $id1, $id2. This likely indicates a problem with the input .genome file data. Please investigate the issue and fix the input data before running COMPADRE.\n");
             }
             ## If that one is UN then treat as unrelated
             if ( @possibilities == 1 ) {
@@ -857,7 +855,7 @@ sub colapse_networks {
             next;
         }
 
-        # combine $id1_network and $id2_network
+        # combine $id1_network and $id2_network. We pull each array, merge them, update the $id1_network entry with the new array and then delete the $id2_network entry.
         my @network1  = @{ $state->{networks}{$id1_network} };
         my @network2  = @{ $state->{networks}{$id2_network} };
         my @new_array = ( @network1, @network2 );
