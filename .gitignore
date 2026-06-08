@@ -25,3 +25,6 @@ padre/data/*/
 
 # Singularity test images
 *.sif
+# pixi environments
+.pixi/*
+!.pixi/config.toml
