@@ -10,6 +10,10 @@ version = "0.1.0"
 install-cpan ="""
 env PERL5LIB="" PERL_LOCAL_LIB_ROOT="" PERL_MM_OPT="" PERL_MB_OPT="" cpanm --installdeps --notest .
 """
+# Command to run compadre
+run-compadre = """
+env PERL5LIB="" PERL_LOCAL_LIB_ROOT="" PERL_MM_OPT="" PERL_MB_OPT="" perl bin/run_COMPADRE.pl
+"""
 
 [dependencies]
 python = "~=3.13.0"

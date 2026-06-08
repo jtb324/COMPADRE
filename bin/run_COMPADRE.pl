@@ -22,10 +22,15 @@ else
 
 ## Set environmental variables
 #print "env: $ENV{'PERL5LIB'}\n";
+if (defined $ENV{'PERL5LIB'} && $ENV{'PERL5LIB'} ne '') {
+    $ENV{'PERL5LIB'} = "$lib_dir/perl_modules:$ENV{'PERL5LIB'}";
+} else {
+    $ENV{'PERL5LIB'} = "$lib_dir/perl_modules";
+}
 $ENV{'PERL5LIB'} = "$ENV{'PERL5LIB'}:$lib_dir/perl_modules";
 #print "env: $ENV{'PERL5LIB'}\n";
 
-$ENV{'PERL5LIB'} =~ s/5\.14\.2/5\.10\.1/g;
+# $ENV{'PERL5LIB'} =~ s/5\.14\.2/5\.10\.1/g;
 #print "env: $ENV{'PERL5LIB'}\n";
 
 ## RUN PRIMUS SCRIPT
